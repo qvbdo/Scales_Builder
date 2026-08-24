@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Clinical Data Dashboard - Field Ready Edition</title>
+    <title>Clinical Data Dashboard - Dual Cloud Edition</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/dexie/dist/dexie.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
@@ -14,8 +14,8 @@
         <!-- Header -->
         <div class="flex justify-between items-center mb-8 bg-white p-4 rounded-xl shadow-sm border-t-4 border-gray-800">
             <div>
-                <h1 class="text-2xl font-bold text-gray-800">Research Platform v17.4</h1>
-                <p class="text-xs text-gray-500 font-bold uppercase tracking-wider">Auto-Save & Advanced Field Dashboard</p>
+                <h1 class="text-2xl font-bold text-gray-800">Research Platform v17.5</h1>
+                <p class="text-xs text-gray-500 font-bold uppercase tracking-wider">Dual Sync: Supabase + Google Sheets</p>
             </div>
             <div class="flex gap-2">
                 <button onclick="switchView('builder')" id="btn-builder" class="bg-blue-600 text-white px-4 py-2 rounded font-bold shadow transition">1. Builder</button>
@@ -54,10 +54,19 @@
                 </div>
 
                 <!-- Cloud Database Credentials Setup -->
-                <div class="bg-indigo-50 p-4 rounded-lg border border-indigo-100 flex flex-wrap gap-4 items-center">
-                    <span class="text-xs font-bold text-indigo-900 uppercase tracking-wider">Cloud Backend Config:</span>
-                    <input type="text" id="cloud-url" onchange="localStorage.setItem('globalCloudUrl', this.value); if(!blueprint.cloud) blueprint.cloud = {}; blueprint.cloud.url = this.value" placeholder="Cloud Endpoint URL (e.g., https://xyz.supabase.co/rest/v1/submissions)" class="flex-1 p-2 border rounded text-xs font-mono">
-                    <input type="password" id="cloud-key" onchange="localStorage.setItem('globalCloudKey', this.value); if(!blueprint.cloud) blueprint.cloud = {}; blueprint.cloud.key = this.value" placeholder="Cloud API Key / Bearer Token" class="w-64 p-2 border rounded text-xs font-mono">
+                <div class="bg-indigo-50 p-4 rounded-lg border border-indigo-100 flex flex-col gap-3">
+                    <span class="text-xs font-bold text-indigo-900 uppercase tracking-wider border-b border-indigo-200 pb-2">Cloud Backend Config:</span>
+                    
+                    <div class="flex flex-wrap gap-4 items-center">
+                        <label class="text-sm font-bold text-indigo-800 w-32">Supabase Sync:</label>
+                        <input type="text" id="cloud-url" onchange="localStorage.setItem('globalCloudUrl', this.value); if(!blueprint.cloud) blueprint.cloud = {}; blueprint.cloud.url = this.value" placeholder="Cloud Endpoint URL (e.g., https://xyz.supabase.co/rest/v1/submissions)" class="flex-1 p-2 border rounded text-xs font-mono">
+                        <input type="password" id="cloud-key" onchange="localStorage.setItem('globalCloudKey', this.value); if(!blueprint.cloud) blueprint.cloud = {}; blueprint.cloud.key = this.value" placeholder="Cloud API Key / Bearer Token" class="w-64 p-2 border rounded text-xs font-mono">
+                    </div>
+                    
+                    <div class="flex flex-wrap gap-4 items-center mt-2">
+                        <label class="text-sm font-bold text-green-800 w-32">Google Sheet URL:</label>
+                        <input type="text" id="sheet-url" onchange="localStorage.setItem('globalSheetUrl', this.value); if(!blueprint.cloud) blueprint.cloud = {}; blueprint.cloud.sheetUrl = this.value" placeholder="Paste your Google Apps Script Web App URL here..." class="flex-1 p-2 border border-green-300 bg-green-50 rounded text-xs font-mono">
+                    </div>
                 </div>
             </div>
 
@@ -182,13 +191,14 @@
         function generateBlankBlueprint() {
             const savedUrl = localStorage.getItem('globalCloudUrl') || '';
             const savedKey = localStorage.getItem('globalCloudKey') || '';
+            const savedSheet = localStorage.getItem('globalSheetUrl') || '';
             
             return {
                 id: 'proj_' + Date.now(),
                 name: 'Psychiatric Nursing Curricula',
                 pin: '1234', 
                 theme: { color: '#2563eb', font: 'sans-serif' },
-                cloud: { url: savedUrl, key: savedKey },
+                cloud: { url: savedUrl, key: savedKey, sheetUrl: savedSheet },
                 intro: {
                     title_en: 'Psychiatric and Mental Health Evaluation', title_ar: 'التقييم النفسي والصحة العقلية',
                     researchers_en: 'Master Candidate - College of Nursing UO Baghdad', researchers_ar: 'طالب ماجستير - كلية التمريض، جامعة بغداد',
@@ -216,7 +226,7 @@
 
         async function saveTemplate() {
             try {
-                if(!blueprint.cloud) blueprint.cloud = { url: localStorage.getItem('globalCloudUrl')||'', key: localStorage.getItem('globalCloudKey')||'' };
+                if(!blueprint.cloud) blueprint.cloud = { url: localStorage.getItem('globalCloudUrl')||'', key: localStorage.getItem('globalCloudKey')||'', sheetUrl: localStorage.getItem('globalSheetUrl')||'' };
                 const clone = JSON.parse(JSON.stringify(blueprint));
                 await db.templates.put({ id: clone.id, name: clone.name, timestamp: Date.now(), blueprint: clone });
                 alert(`Project "${clone.name}" saved successfully.`);
@@ -271,13 +281,16 @@
             
             const savedUrl = localStorage.getItem('globalCloudUrl') || blueprint.cloud?.url || '';
             const savedKey = localStorage.getItem('globalCloudKey') || blueprint.cloud?.key || '';
+            const savedSheet = localStorage.getItem('globalSheetUrl') || blueprint.cloud?.sheetUrl || '';
             
             document.getElementById('cloud-url').value = savedUrl;
             document.getElementById('cloud-key').value = savedKey;
+            document.getElementById('sheet-url').value = savedSheet;
             
             if(!blueprint.cloud) blueprint.cloud = {};
             blueprint.cloud.url = savedUrl;
             blueprint.cloud.key = savedKey;
+            blueprint.cloud.sheetUrl = savedSheet;
 
             document.getElementById('intro-title-en').value = blueprint.intro?.title_en || '';
             document.getElementById('intro-res-en').value = blueprint.intro?.researchers_en || '';
@@ -389,10 +402,10 @@
             const aK = `answers['${q.vName}']`; let html = ''; const txt = esc(q['text_'+currentLang]), rq = q.req ? '<span class="text-red-500">*</span>' : '';
             if (q.type === 'number') html = `<input type="number" class="w-full p-3 border rounded" onchange="${aK}=Number(this.value); evaluateLogic();">`;
             if (q.type === 'text') html = `<textarea class="w-full p-3 border rounded" onchange="${aK}=this.value; evaluateLogic();"></textarea>`;
-            if (q.type === 'binary' || q.type === 'mcq') html = `<div class="space-y-3">` + (q.options||[]).map(o => `<label class="flex items-center space-x-3 p-3 border rounded cursor-pointer hover:bg-gray-50 transition"><input type="radio" name="${q.id}" value="${o.value}" onchange="${aK}=Number(this.value); evaluateLogic();" class="w-5 h-5"> <span>${esc(o['label_'+currentLang])}</span></label>`).join('') + `</div>`;
-            if (q.type === 'checkbox') html = `<div class="space-y-3">` + (q.options||[]).map(o => `<label class="flex items-center space-x-3 p-3 border rounded cursor-pointer hover:bg-gray-50 transition"><input type="checkbox" value="${o.value}" onchange="if(!answers['${q.vName}']) answers['${q.vName}']=[]; if(this.checked) answers['${q.vName}'].push(Number(this.value)); else answers['${q.vName}']=answers['${q.vName}'].filter(x=>x!==Number(this.value)); evaluateLogic();" class="w-5 h-5"> <span>${esc(o['label_'+currentLang])}</span></label>`).join('') + `</div>`;
-            if (q.type === 'likert') html = `<div class="flex overflow-x-auto justify-between gap-2 bg-gray-50 p-4 rounded border">` + (q.options||[]).map(o => `<label class="flex flex-col items-center flex-1 text-center cursor-pointer min-w-[60px]"><input type="radio" name="${q.id}" value="${o.value}" onchange="${aK}=Number(this.value); evaluateLogic();" class="w-6 h-6 mb-2"> <span class="text-xs font-semibold break-words">${esc(o['label_'+currentLang])}</span></label>`).join('') + `</div>`;
-            if (q.type === 'scale10') html = `<div class="flex overflow-x-auto justify-between gap-1 bg-gray-50 p-3 rounded border">` + [1,2,3,4,5,6,7,8,9,10].map(n => `<label class="flex flex-col items-center flex-1 cursor-pointer min-w-[40px]"><input type="radio" name="${q.id}" value="${n}" onchange="${aK}=Number(this.value); evaluateLogic();" class="w-6 h-6 mb-2"> <span class="text-sm font-bold text-gray-700">${n}</span></label>`).join('') + `</div>`;
+            if (q.type === 'binary' || q.type === 'mcq') html = `<div class="space-y-2">` + (q.options||[]).map(o => `<label class="flex items-center space-x-3 p-3 border rounded cursor-pointer"><input type="radio" name="${q.id}" value="${o.value}" onchange="${aK}=Number(this.value); evaluateLogic();"> <span>${esc(o['label_'+currentLang])}</span></label>`).join('') + `</div>`;
+            if (q.type === 'checkbox') html = `<div class="space-y-2">` + (q.options||[]).map(o => `<label class="flex items-center space-x-3 p-3 border rounded cursor-pointer"><input type="checkbox" value="${o.value}" onchange="if(!answers['${q.vName}']) answers['${q.vName}']=[]; if(this.checked) answers['${q.vName}'].push(Number(this.value)); else answers['${q.vName}']=answers['${q.vName}'].filter(x=>x!==Number(this.value)); evaluateLogic();"> <span>${esc(o['label_'+currentLang])}</span></label>`).join('') + `</div>`;
+            if (q.type === 'likert') html = `<div class="flex justify-between space-x-2 bg-gray-50 p-4 rounded border">` + (q.options||[]).map(o => `<label class="flex flex-col items-center flex-1 text-center cursor-pointer"><input type="radio" name="${q.id}" value="${o.value}" onchange="${aK}=Number(this.value); evaluateLogic();" class="w-5 h-5 mb-2"> <span class="text-xs font-semibold">${esc(o['label_'+currentLang])}</span></label>`).join('') + `</div>`;
+            if (q.type === 'scale10') html = `<div class="flex justify-between space-x-1 bg-gray-50 p-3 rounded border">` + [1,2,3,4,5,6,7,8,9,10].map(n => `<label class="flex flex-col items-center flex-1 cursor-pointer"><input type="radio" name="${q.id}" value="${n}" onchange="${aK}=Number(this.value); evaluateLogic();" class="w-5 h-5 mb-2"> <span class="text-xs font-bold text-gray-700">${n}</span></label>`).join('') + `</div>`;
             if (q.type === 'signature') html = `<div class="border-2 border-dashed border-gray-400 rounded bg-gray-50 p-2"><canvas id="sig-${q.id}" width="400" height="150" class="w-full bg-white border cursor-crosshair touch-none" style="max-width:100%;"></canvas><div class="flex justify-end mt-2"><button type="button" onclick="clearSig('${q.id}', '${q.vName}')" class="text-xs bg-red-100 text-red-600 px-2 py-1 rounded">Clear</button></div></div>`;
             if (q.type === 'camera') html = `<div class="p-4 border-2 border-dashed border-gray-400 rounded bg-gray-50 text-center"><input type="file" accept="image/*" capture="environment" onchange="const f=this.files[0]; const r=new FileReader(); r.onload=e=>{${aK}=e.target.result; evaluateLogic();}; if(f) r.readAsDataURL(f);" class="text-sm"></div>`;
             return `<label class="block font-bold text-lg mb-3">${txt} ${rq}</label>${html}`;
@@ -517,10 +530,10 @@
             if (view === 'builder') renderBuilder(); if (view === 'preview') { activePage = 0; renderPreview(); } if (view === 'manager') { closeAnalytics(); loadSamples(); }
         }
 
-        // --- Dual-Mode Offline / Online App Bundler (v17.4 - AutoSave & Dashboard) ---
+        // --- Dual-Mode Offline / Online App Bundler (v17.5 - Dual Sync Google Sheets + Supabase) ---
         function exportStandaloneForm(mode) {
-            if (mode === 'online' && !blueprint.cloud?.url) {
-                return alert('Please enter a Cloud Endpoint URL in the Builder settings before exporting the Live Online App.');
+            if (mode === 'online' && !blueprint.cloud?.url && !blueprint.cloud?.sheetUrl) {
+                return alert('Please enter at least one Cloud Endpoint URL (Supabase or Google Sheets) in the Builder settings before exporting the Live Online App.');
             }
 
             const tmpl = `<!DOCTYPE html><html lang="en" dir="auto"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>${esc(blueprint.name)} - Collector</title>
@@ -669,7 +682,6 @@
             if(!valPg()) return; 
             if(!ans._duration_sec) ans._duration_sec = Math.round((Date.now() - stT) / 1000); 
             
-            // If editing, keep old UUID and timestamp, else generate new
             const record = { 
                 id: eId ? eId : crypto.randomUUID(), 
                 participantId: cId, 
@@ -679,24 +691,42 @@
             };
             
             let postedOnline = false;
-            if (isOnlineMode && navigator.onLine && bp.cloud?.url) {
-                try {
-                    const fetchUrl = new URL(bp.cloud.url);
-                    // For Supabase, if editing, we must specify the ID to update. Using an UPSERT via headers.
-                    const res = await fetch(fetchUrl.toString(), {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json', 'apikey': bp.cloud.key || '', 'Authorization': 'Bearer ' + (bp.cloud.key || ''), 'Prefer': 'resolution=merge-duplicates' },
-                        body: JSON.stringify(record)
-                    });
-                    if (res.ok) postedOnline = true;
-                } catch(e) { console.log('Online post failed, falling back to local DB.'); }
+            let syncNotice = "";
+
+            if (isOnlineMode && navigator.onLine) {
+                // 1. Post to Supabase
+                if (bp.cloud?.url) {
+                    try {
+                        const res = await fetch(bp.cloud.url, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json', 'apikey': bp.cloud.key || '', 'Authorization': 'Bearer ' + (bp.cloud.key || ''), 'Prefer': 'resolution=merge-duplicates' },
+                            body: JSON.stringify(record)
+                        });
+                        if (res.ok) { postedOnline = true; syncNotice += "\\n✅ Synced to Supabase"; }
+                    } catch(e) { console.log('Supabase sync failed.'); }
+                }
+
+                // 2. Post to Google Sheets
+                if (bp.cloud?.sheetUrl) {
+                    try {
+                        // mode: no-cors is required because Google Apps Script redirects responses
+                        fetch(bp.cloud.sheetUrl, {
+                            method: 'POST',
+                            mode: 'no-cors',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify(record)
+                        });
+                        syncNotice += "\\n✅ Fired to Google Sheets";
+                    } catch(e) { console.log('Google Sheets sync failed.'); }
+                }
             }
 
+            if(!postedOnline && !syncNotice) { syncNotice = "\\n⚠️ Saved Locally (Offline)"; }
+
             await db.submissions.put(record); 
-            clrDrt(); // Clear draft on successful save
+            clrDrt(); 
             
             const ls = cSc(); 
-            const syncNotice = postedOnline ? "\\n(Synced Live to Cloud)" : "\\n(Saved Locally)";
             if(ls) alert(ls + syncNotice); else alert("Saved Successfully." + syncNotice); 
             
             ans = {}; cId = ''; document.getElementById('p-id').value = ''; p = 0; eId = null; goTo('intro'); 
@@ -733,7 +763,7 @@
             const rec = await db.submissions.get(id);
             if(rec) {
                 ans = rec.answers; 
-                ans._origTime = rec.timestamp; // Preserve original timestamp
+                ans._origTime = rec.timestamp; 
                 cId = rec.participantId; 
                 eId = rec.id; 
                 p = 0; 
@@ -744,7 +774,6 @@
 
         async function exp() { const d = await db.submissions.where({projectId: bp.id}).toArray(); const l = document.createElement('a'); l.href = URL.createObjectURL(new Blob([JSON.stringify({ data: d }, null, 2)], { type: 'application/json' })); l.download = 'field_sync_'+Date.now()+'.json'; l.click(); }
         
-        // Init
         goTo('intro');
     </scr`+`ipt>
 </body></html>`;
