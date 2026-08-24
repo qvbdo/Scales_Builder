@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Clinical Data Dashboard - Ultimate Config Edition</title>
+    <title>Clinical Data Dashboard - Hardcoded HTML Edition</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/dexie/dist/dexie.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
@@ -14,8 +14,8 @@
         <!-- Header -->
         <div class="flex justify-between items-center mb-8 bg-white p-4 rounded-xl shadow-sm border-t-4 border-gray-800">
             <div>
-                <h1 class="text-2xl font-bold text-gray-800">Research Platform v17.7</h1>
-                <p class="text-xs text-gray-500 font-bold uppercase tracking-wider">Strict Config Override Active</p>
+                <h1 class="text-2xl font-bold text-gray-800">Research Platform v17.8</h1>
+                <p class="text-xs text-gray-500 font-bold uppercase tracking-wider">HTML Hardcoded Keys</p>
             </div>
             <div class="flex gap-2">
                 <button onclick="switchView('builder')" id="btn-builder" class="bg-blue-600 text-white px-4 py-2 rounded font-bold shadow transition">1. Builder</button>
@@ -59,13 +59,13 @@
                     
                     <div class="flex flex-wrap gap-4 items-center">
                         <label class="text-sm font-bold text-indigo-800 w-32">Supabase Sync:</label>
-                        <input type="text" id="cloud-url" onchange="if(!blueprint.cloud) blueprint.cloud = {}; blueprint.cloud.url = this.value" placeholder="Cloud Endpoint URL" class="flex-1 p-2 border rounded text-xs font-mono bg-gray-100">
-                        <input type="password" id="cloud-key" onchange="if(!blueprint.cloud) blueprint.cloud = {}; blueprint.cloud.key = this.value" placeholder="Cloud API Key" class="w-64 p-2 border rounded text-xs font-mono bg-gray-100">
+                        <input type="text" id="cloud-url" value="https://racgtsqekgvbvghnkkla.supabase.co/rest/v1/submissions" onchange="if(!blueprint.cloud) blueprint.cloud = {}; blueprint.cloud.url = this.value" class="flex-1 p-2 border rounded text-xs font-mono bg-gray-100 text-gray-800">
+                        <input type="text" id="cloud-key" value="sb_publishable_Vt2kmf7OvA7wZHf4Hl5DXQ_clesdbgB" onchange="if(!blueprint.cloud) blueprint.cloud = {}; blueprint.cloud.key = this.value" class="w-64 p-2 border rounded text-xs font-mono bg-gray-100 text-gray-800">
                     </div>
                     
                     <div class="flex flex-wrap gap-4 items-center mt-2">
                         <label class="text-sm font-bold text-green-800 w-32">Google Sheet URL:</label>
-                        <input type="text" id="sheet-url" onchange="if(!blueprint.cloud) blueprint.cloud = {}; blueprint.cloud.sheetUrl = this.value" placeholder="Google Apps Script Web App URL" class="flex-1 p-2 border border-green-300 bg-green-50 rounded text-xs font-mono bg-gray-100">
+                        <input type="text" id="sheet-url" value="https://script.google.com/macros/s/AKfycbyXU4DhqtU8AxYHoMAe4DpwUnTLiJ5vabKlhGKiLXP2V2U71r8VuPhAbagQGikqA8h6ow/exec" onchange="if(!blueprint.cloud) blueprint.cloud = {}; blueprint.cloud.sheetUrl = this.value" class="flex-1 p-2 border border-green-300 bg-green-50 rounded text-xs font-mono text-gray-800">
                     </div>
                 </div>
             </div>
@@ -172,16 +172,6 @@
     </div>
 
     <script>
-        // =====================================================================
-        // 🔒 MASTER CONFIGURATION (HARDCODED & INJECTED)
-        // =====================================================================
-        const MASTER_CONFIG = {
-            supabaseUrl: "https://racgtsqekgvbvghnkkla.supabase.co/rest/v1/submissions",
-            supabaseKey: "sb_publishable_Vt2kmf7OvA7wZHf4Hl5DXQ_clesdbgB",
-            googleSheetUrl: "https://script.google.com/macros/s/AKfycbyXU4DhqtU8AxYHoMAe4DpwUnTLiJ5vabKlhGKiLXP2V2U71r8VuPhAbagQGikqA8h6ow/exec"
-        };
-        // =====================================================================
-
         const db = new Dexie("MasterHubDB_V17");
         db.version(1).stores({ 
             submissions: 'id, participantId, projectId, timestamp', 
@@ -205,9 +195,9 @@
                 pin: '1234', 
                 theme: { color: '#2563eb', font: 'sans-serif' },
                 cloud: { 
-                    url: MASTER_CONFIG.supabaseUrl, 
-                    key: MASTER_CONFIG.supabaseKey, 
-                    sheetUrl: MASTER_CONFIG.googleSheetUrl 
+                    url: "https://racgtsqekgvbvghnkkla.supabase.co/rest/v1/submissions", 
+                    key: "sb_publishable_Vt2kmf7OvA7wZHf4Hl5DXQ_clesdbgB", 
+                    sheetUrl: "https://script.google.com/macros/s/AKfycbyXU4DhqtU8AxYHoMAe4DpwUnTLiJ5vabKlhGKiLXP2V2U71r8VuPhAbagQGikqA8h6ow/exec" 
                 },
                 intro: {
                     title_en: 'Psychiatric and Mental Health Evaluation', title_ar: 'التقييم النفسي والصحة العقلية',
@@ -237,7 +227,11 @@
         async function saveTemplate() {
             try {
                 if(!blueprint.cloud) {
-                    blueprint.cloud = { url: MASTER_CONFIG.supabaseUrl, key: MASTER_CONFIG.supabaseKey, sheetUrl: MASTER_CONFIG.googleSheetUrl };
+                    blueprint.cloud = { 
+                        url: "https://racgtsqekgvbvghnkkla.supabase.co/rest/v1/submissions", 
+                        key: "sb_publishable_Vt2kmf7OvA7wZHf4Hl5DXQ_clesdbgB", 
+                        sheetUrl: "https://script.google.com/macros/s/AKfycbyXU4DhqtU8AxYHoMAe4DpwUnTLiJ5vabKlhGKiLXP2V2U71r8VuPhAbagQGikqA8h6ow/exec" 
+                    };
                 }
                 const clone = JSON.parse(JSON.stringify(blueprint));
                 await db.templates.put({ id: clone.id, name: clone.name, timestamp: Date.now(), blueprint: clone });
@@ -291,19 +285,15 @@
             document.getElementById('theme-color').value = blueprint.theme.color;
             document.getElementById('app-pin').value = blueprint.pin;
             
-            // STRICT OVERRIDE: Always force the input boxes to use the MASTER_CONFIG
-            const finalUrl = MASTER_CONFIG.supabaseUrl;
-            const finalKey = MASTER_CONFIG.supabaseKey;
-            const finalSheet = MASTER_CONFIG.googleSheetUrl;
-            
-            document.getElementById('cloud-url').value = finalUrl;
-            document.getElementById('cloud-key').value = finalKey;
-            document.getElementById('sheet-url').value = finalSheet;
-            
+            // STRICT HTML FORCING
             if(!blueprint.cloud) blueprint.cloud = {};
-            blueprint.cloud.url = finalUrl;
-            blueprint.cloud.key = finalKey;
-            blueprint.cloud.sheetUrl = finalSheet;
+            blueprint.cloud.url = "https://racgtsqekgvbvghnkkla.supabase.co/rest/v1/submissions";
+            blueprint.cloud.key = "sb_publishable_Vt2kmf7OvA7wZHf4Hl5DXQ_clesdbgB";
+            blueprint.cloud.sheetUrl = "https://script.google.com/macros/s/AKfycbyXU4DhqtU8AxYHoMAe4DpwUnTLiJ5vabKlhGKiLXP2V2U71r8VuPhAbagQGikqA8h6ow/exec";
+
+            document.getElementById('cloud-url').value = blueprint.cloud.url;
+            document.getElementById('cloud-key').value = blueprint.cloud.key;
+            document.getElementById('sheet-url').value = blueprint.cloud.sheetUrl;
 
             document.getElementById('intro-title-en').value = blueprint.intro?.title_en || '';
             document.getElementById('intro-res-en').value = blueprint.intro?.researchers_en || '';
