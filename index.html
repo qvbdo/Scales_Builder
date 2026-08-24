@@ -1,44 +1,181 @@
+```html
 <!DOCTYPE html>
 <html lang="en" dir="ltr">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Clinical Data Dashboard - Enhanced Sync Edition v18.1</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <script src="https://unpkg.com/dexie/dist/dexie.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <title>Clinical Data Dashboard - Enhanced Sync Edition v18.0</title>
+    <script src="https://cdn.tailwindcss.com">
+    </script>
+    <script src="https://unpkg.com/dexie/dist/dexie.js">
+    </script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js">
+    </script>
     <script>
-        tailwind.config = { theme: { extend: { colors: { primary: 'var(--theme-color, #2563eb)' } } } };
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        primary: 'var(--theme-color, #2563eb)',
+                    }
+                }
+            }
+        }
     </script>
     <style>
-        :root { --theme-color: #2563eb; }
-        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
-        .tab-active { border-bottom: 3px solid var(--theme-color); color: var(--theme-color); font-weight: 600; }
-        .rtl { direction: rtl; text-align: right; }
-        .modal-bg { background: rgba(0,0,0,0.5); backdrop-filter: blur(4px); }
-        @keyframes pulse { 0%{box-shadow:0 0 0 0 rgba(34,197,94,0.7)} 70%{box-shadow:0 0 0 10px rgba(34,197,94,0)} 100%{box-shadow:0 0 0 0 rgba(34,197,94,0)} }
-        .btn-primary { background-color: var(--theme-color); color: white; }
-        .btn-primary:hover { opacity: 0.9; }
-        .btn-outline { border: 1px solid var(--theme-color); color: var(--theme-color); }
-        .btn-outline:hover { background-color: var(--theme-color); color: white; }
-        .sync-pending { background: #fef3c7; border-left: 4px solid #f59e0b; }
-        .sync-synced { background: #d1fae5; border-left: 4px solid #10b981; }
-        .sync-failed { background: #fee2e2; border-left: 4px solid #ef4444; }
-        .sync-conflict { background: #e0e7ff; border-left: 4px solid #6366f1; }
-        .sync-indicator { width: 10px; height: 10px; border-radius: 50%; display: inline-block; margin-right: 6px; }
-        .sync-dot-pending { background: #f59e0b; animation: pulse-dot 1.5s infinite; }
-        .sync-dot-synced { background: #10b981; }
-        .sync-dot-failed { background: #ef4444; }
-        .sync-dot-conflict { background: #6366f1; }
-        @keyframes pulse-dot { 0%,100%{opacity:1} 50%{opacity:0.4} }
-        .toast { position: fixed; bottom: 20px; right: 20px; padding: 12px 20px; border-radius: 8px; color: white; font-weight: bold; z-index: 100; transition: all 0.3s; transform: translateY(100px); opacity: 0; box-shadow: 0 4px 12px rgba(0,0,0,0.15); }
-        .toast.show { transform: translateY(0); opacity: 1; }
-        .toast-success { background: #10b981; } .toast-error { background: #ef4444; }
-        .toast-warning { background: #f59e0b; } .toast-info { background: #3b82f6; }
-        .queue-badge { position: absolute; top: -8px; right: -8px; background: #ef4444; color: white; font-size: 10px; padding: 2px 6px; border-radius: 10px; font-weight: bold; }
-        .item-card { transition: all 0.2s; } .item-card:hover { box-shadow: 0 4px 12px rgba(0,0,0,0.08); }
-        .sig-canvas { border: 2px dashed #9ca3af; border-radius: 8px; background: white; cursor: crosshair; touch-action: none; }
-        /* LIKERT BATCH GENERATOR */
+        :root {
+            --theme-color: #2563eb;
+        }
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+        .tab-active {
+            border-bottom: 3px solid var(--theme-color);
+            color: var(--theme-color);
+            font-weight: 600;
+        }
+        .rtl {
+            direction: rtl;
+            text-align: right;
+        }
+        .modal-bg {
+            background: rgba(0, 0, 0, 0.5);
+            backdrop-filter: blur(4px);
+        }
+        .sync-pulse {
+            animation: pulse 2s infinite;
+        }
+        @keyframes pulse {
+            0% {
+                box-shadow: 0 0 0 0 rgba(34, 197, 94, 0.7);
+            }
+            70% {
+                box-shadow: 0 0 0 10px rgba(34, 197, 94, 0);
+            }
+            100% {
+                box-shadow: 0 0 0 0 rgba(34, 197, 94, 0);
+            }
+        }
+        .btn-primary {
+            background-color: var(--theme-color);
+            color: white;
+        }
+        .btn-primary:hover {
+            opacity: 0.9;
+        }
+        .btn-outline {
+            border: 1px solid var(--theme-color);
+            color: var(--theme-color);
+        }
+        .btn-outline:hover {
+            background-color: var(--theme-color);
+            color: white;
+        }
+
+        .sync-pending {
+            background: #fef3c7;
+            border-left: 4px solid #f59e0b;
+        }
+        .sync-synced {
+            background: #d1fae5;
+            border-left: 4px solid #10b981;
+        }
+        .sync-failed {
+            background: #fee2e2;
+            border-left: 4px solid #ef4444;
+        }
+        .sync-conflict {
+            background: #e0e7ff;
+            border-left: 4px solid #6366f1;
+        }
+        .sync-indicator {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            display: inline-block;
+            margin-right: 6px;
+        }
+        .sync-dot-pending {
+            background: #f59e0b;
+            animation: pulse-dot 1.5s infinite;
+        }
+        .sync-dot-synced {
+            background: #10b981;
+        }
+        .sync-dot-failed {
+            background: #ef4444;
+        }
+        .sync-dot-conflict {
+            background: #6366f1;
+        }
+        @keyframes pulse-dot {
+            0%,
+            100% {
+                opacity: 1;
+            }
+            50% {
+                opacity: 0.4;
+            }
+        }
+
+        .toast {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            padding: 12px 20px;
+            border-radius: 8px;
+            color: white;
+            font-weight: bold;
+            z-index: 100;
+            transition: all 0.3s;
+            transform: translateY(100px);
+            opacity: 0;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+        }
+        .toast.show {
+            transform: translateY(0);
+            opacity: 1;
+        }
+        .toast-success {
+            background: #10b981;
+        }
+        .toast-error {
+            background: #ef4444;
+        }
+        .toast-warning {
+            background: #f59e0b;
+        }
+        .toast-info {
+            background: #3b82f6;
+        }
+
+        .queue-badge {
+            position: absolute;
+            top: -8px;
+            right: -8px;
+            background: #ef4444;
+            color: white;
+            font-size: 10px;
+            padding: 2px 6px;
+            border-radius: 10px;
+            font-weight: bold;
+        }
+
+        .item-card {
+            transition: all 0.2s;
+        }
+        .item-card:hover {
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+        }
+
+        .sig-canvas {
+            border: 2px dashed #9ca3af;
+            border-radius: 8px;
+            background: white;
+            cursor: crosshair;
+            touch-action: none;
+        }
+        /* ═══ LIKERT BATCH GENERATOR ═══ */
         .lbg-box{border:2px solid var(--theme-color);border-radius:8px;padding:16px;margin-bottom:16px;background:#f8fafc}
         .lbg-box h3{margin:0 0 12px 0;font-size:16px;color:var(--theme-color)}
         .lbg-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin-bottom:12px}
@@ -50,14 +187,16 @@
         .lbg-table td.qname{text-align:left;font-weight:600;background:#f1f5f9}
         .lbg-table .score{color:var(--theme-color);font-weight:700}
     </style>
+    <base target="_blank">
 </head>
 <body class="bg-gray-50 text-gray-800 min-h-screen flex flex-col">
 
+    <!-- Header -->
     <header class="bg-white shadow-sm border-b border-gray-200">
         <div class="max-w-7xl mx-auto px-4 py-4 flex justify-between items-center">
             <div>
                 <h1 class="text-2xl font-bold text-primary">Clinical Data Dashboard</h1>
-                <p class="text-xs text-gray-500">Research Platform v18.1 | Enhanced Sync & Data Integrity | Export-Fixed</p>
+                <p class="text-xs text-gray-500">Research Platform v18.0 | Enhanced Sync & Data Integrity</p>
             </div>
             <div class="flex items-center gap-4">
                 <div id="connection-status" class="flex items-center gap-2 px-3 py-1.5 rounded-full bg-gray-100 text-xs font-bold">
@@ -68,19 +207,23 @@
         </div>
     </header>
 
+    <!-- Navigation Tabs -->
     <nav class="bg-white border-b border-gray-200">
         <div class="max-w-7xl mx-auto px-4 flex gap-6">
             <button onclick="switchTab('builder')" id="tab-builder" class="py-3 px-2 text-sm tab-active">1. Builder</button>
             <button onclick="switchTab('inspect')" id="tab-inspect" class="py-3 px-2 text-sm text-gray-500 hover:text-gray-700">2. Inspect UI</button>
             <button onclick="switchTab('hub')" id="tab-hub" class="py-3 px-2 text-sm text-gray-500 hover:text-gray-700 relative">
-                3. Master Data Hub <span id="hub-queue-badge" class="queue-badge hidden">0</span>
+                3. Master Data Hub
+                <span id="hub-queue-badge" class="queue-badge hidden">0</span>
             </button>
         </div>
     </nav>
 
     <main class="flex-1 max-w-7xl mx-auto px-4 py-6 w-full">
 
+        <!-- ================= 1. BUILDER TAB ================= -->
         <section id="view-builder" class="space-y-6">
+            <!-- Project Controls -->
             <div class="bg-white p-6 rounded-lg shadow-sm border border-gray-200">
                 <div class="flex flex-wrap justify-between items-center mb-4">
                     <h2 class="text-lg font-semibold text-primary">Active Project: <span id="project-name-display" class="font-normal text-gray-600">Untitled</span></h2>
@@ -92,16 +235,22 @@
                     </div>
                 </div>
                 <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-4">
-                    <div><label class="block text-xs font-medium text-gray-500 mb-1">Theme Color</label>
-                        <input type="color" id="cfg-theme" value="#2563eb" onchange="updateTheme()" class="w-full h-9 rounded border-gray-300 cursor-pointer"></div>
-                    <div><label class="block text-xs font-medium text-gray-500 mb-1">Font</label>
+                    <div>
+                        <label class="block text-xs font-medium text-gray-500 mb-1">Theme Color</label>
+                        <input type="color" id="cfg-theme" value="#2563eb" onchange="updateTheme()" class="w-full h-9 rounded border-gray-300 cursor-pointer">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-medium text-gray-500 mb-1">Font</label>
                         <select id="cfg-font" onchange="updateFont()" class="w-full h-9 rounded border-gray-300 text-sm">
                             <option value="'Segoe UI', sans-serif">Modern Academic</option>
                             <option value="Georgia, serif">Classic Serif</option>
                             <option value="monospace">Monospace</option>
-                        </select></div>
-                    <div><label class="block text-xs font-medium text-gray-500 mb-1">Security PIN</label>
-                        <input type="password" id="cfg-pin" class="w-full h-9 px-2 border border-gray-300 rounded text-sm" placeholder="Optional"></div>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-xs font-medium text-gray-500 mb-1">Security PIN</label>
+                        <input type="password" id="cfg-pin" class="w-full h-9 px-2 border border-gray-300 rounded text-sm" placeholder="Optional">
+                    </div>
                     <div class="flex items-end gap-2">
                         <button onclick="exportOfflineApp()" class="btn-outline px-3 py-1.5 rounded-md text-sm flex-1">Export Offline (.html)</button>
                         <button onclick="exportOnlineApp()" class="btn-primary px-3 py-1.5 rounded-md text-sm flex-1">🌐 Export Online (.html)</button>
@@ -109,6 +258,7 @@
                 </div>
             </div>
 
+            <!-- Cloud Config -->
             <div class="bg-white p-6 rounded-lg shadow-sm border border-gray-200">
                 <h2 class="text-lg font-semibold mb-4 text-primary">Cloud Backend Config</h2>
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -131,6 +281,7 @@
                 </div>
             </div>
 
+            <!-- Research Details -->
             <div class="bg-white p-6 rounded-lg shadow-sm border border-gray-200">
                 <h2 class="text-lg font-semibold mb-4 text-primary">Research Details (Introductory Page)</h2>
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -149,45 +300,63 @@
                 </div>
             </div>
 
+            <!-- Instrument Structure -->
             <div class="bg-white p-6 rounded-lg shadow-sm border border-gray-200">
                 <div class="flex justify-between items-center mb-4">
                     <h2 class="text-lg font-semibold text-primary">Instrument Structure</h2>
                     <button onclick="addNewPage()" class="btn-primary px-4 py-2 rounded-md text-sm">+ Add New Page</button>
                 </div>
-
+                
+                <!-- ═══ LIKERT BATCH GENERATOR ═══ -->
                 <div class="lbg-box" id="likertBatchGen">
                     <h3>⚡ Likert Batch Generator <span style="font-weight:normal;font-size:12px;color:#666;">(Word-style table insertion — set numbers → auto-generate items)</span></h3>
                     <div class="lbg-grid">
-                        <label>Number of Questions<input type="number" id="lbgCount" min="1" max="200" value="5"></label>
+                        <label>Number of Questions
+                            <input type="number" id="lbgCount" min="1" max="200" value="5">
+                        </label>
                         <label>Scale Points
                             <select id="lbgPoints">
-                                <option value="3">3-Point</option><option value="4">4-Point</option>
-                                <option value="5" selected>5-Point</option><option value="6">6-Point</option>
+                                <option value="3">3-Point</option>
+                                <option value="4">4-Point</option>
+                                <option value="5" selected>5-Point</option>
+                                <option value="6">6-Point</option>
                                 <option value="7">7-Point</option>
-                            </select></label>
-                        <label>Scoring Starts At<input type="number" id="lbgStart" value="1"></label>
+                            </select>
+                        </label>
+                        <label>Scoring Starts At
+                            <input type="number" id="lbgStart" value="1">
+                        </label>
                         <label>Scoring Direction
                             <select id="lbgDirection">
                                 <option value="asc" selected>Ascending (left = lowest score)</option>
                                 <option value="desc">Descending / Reversed (left = highest score)</option>
-                            </select></label>
+                            </select>
+                        </label>
                         <label>Point Labels
                             <select id="lbgLabels">
                                 <option value="all" selected>Verbal (Strongly Disagree … Strongly Agree)</option>
                                 <option value="numbers">Numbers only (1 2 3 4 5)</option>
                                 <option value="endpoints">Verbal on endpoints only</option>
-                            </select></label>
-                        <label>Question Text Prefix<input type="text" id="lbgPrefix" value="Item"></label>
-                        <label>Target Page<select id="lbgTargetPage"></select></label>
+                            </select>
+                        </label>
+                        <label>Question Text Prefix
+                            <input type="text" id="lbgPrefix" value="Item">
+                        </label>
+                        <label>Target Page
+                            <select id="lbgTargetPage"></select>
+                        </label>
                     </div>
                     <div id="lbgPreview"></div>
                     <button type="button" class="btn-primary px-4 py-2 rounded-md text-sm font-bold" onclick="lbgGenerate()">⚡ Generate Items Into Builder</button>
                 </div>
-
-                <div id="builder-pages-container" class="space-y-4"></div>
+                
+                <div id="builder-pages-container" class="space-y-4">
+                    <!-- Pages injected here -->
+                </div>
             </div>
         </section>
 
+        <!-- ================= 2. INSPECT UI TAB ================= -->
         <section id="view-inspect" class="hidden">
             <div class="bg-white p-8 rounded-lg shadow-sm border border-gray-200 max-w-3xl mx-auto">
                 <div class="flex justify-between items-center mb-6 border-b pb-4">
@@ -197,11 +366,16 @@
                         <button onclick="setInspectLang('ar')" id="btn-lang-ar" class="px-3 py-1 text-xs bg-gray-100 text-gray-800 rounded">AR</button>
                     </div>
                 </div>
+
                 <div id="inspect-content" class="space-y-4">
                     <p class="text-gray-600 mb-6" id="inspect-welcome">Welcome text...</p>
                     <p class="text-sm text-gray-500 italic" id="inspect-authors">Researchers...</p>
-                    <div id="inspect-pages-container" class="mt-8 space-y-6"></div>
+
+                    <div id="inspect-pages-container" class="mt-8 space-y-6">
+                        <!-- Instrument pages injected here -->
+                    </div>
                 </div>
+
                 <div class="mt-8 flex justify-between items-center border-t pt-4">
                     <button onclick="inspectPrev()" id="btn-inspect-prev" class="btn-outline px-4 py-2 rounded-md text-sm hidden">Previous</button>
                     <div class="flex-1"></div>
@@ -211,15 +385,33 @@
             </div>
         </section>
 
+        <!-- ================= 3. MASTER DATA HUB TAB ================= -->
         <section id="view-hub" class="hidden space-y-6">
+            <!-- Sync Stats Dashboard -->
             <div class="grid grid-cols-4 gap-4">
-                <div class="bg-white border rounded-lg p-4 shadow-sm"><div class="text-xs font-bold text-gray-500 uppercase">Total Records</div><div class="text-2xl font-bold text-gray-800" id="stat-total">0</div></div>
-                <div class="bg-green-50 border border-green-200 rounded-lg p-4 shadow-sm"><div class="text-xs font-bold text-green-600 uppercase">Synced</div><div class="text-2xl font-bold text-green-700" id="stat-synced">0</div></div>
-                <div class="bg-yellow-50 border border-yellow-200 rounded-lg p-4 shadow-sm"><div class="text-xs font-bold text-yellow-600 uppercase">Pending</div><div class="text-2xl font-bold text-yellow-700" id="stat-pending">0</div></div>
-                <div class="bg-red-50 border border-red-200 rounded-lg p-4 shadow-sm"><div class="text-xs font-bold text-red-600 uppercase">Failed</div><div class="text-2xl font-bold text-red-700" id="stat-failed">0</div></div>
+                <div class="bg-white border rounded-lg p-4 shadow-sm">
+                    <div class="text-xs font-bold text-gray-500 uppercase">Total Records</div>
+                    <div class="text-2xl font-bold text-gray-800" id="stat-total">0</div>
+                </div>
+                <div class="bg-green-50 border border-green-200 rounded-lg p-4 shadow-sm">
+                    <div class="text-xs font-bold text-green-600 uppercase">Synced</div>
+                    <div class="text-2xl font-bold text-green-700" id="stat-synced">0</div>
+                </div>
+                <div class="bg-yellow-50 border border-yellow-200 rounded-lg p-4 shadow-sm">
+                    <div class="text-xs font-bold text-yellow-600 uppercase">Pending</div>
+                    <div class="text-2xl font-bold text-yellow-700" id="stat-pending">0</div>
+                </div>
+                <div class="bg-red-50 border border-red-200 rounded-lg p-4 shadow-sm">
+                    <div class="text-xs font-bold text-red-600 uppercase">Failed</div>
+                    <div class="text-2xl font-bold text-red-700" id="stat-failed">0</div>
+                </div>
             </div>
+
             <div class="flex flex-wrap gap-3">
-                <button onclick="syncEngine.processQueue()" id="btn-sync-now" class="btn-primary px-4 py-2 rounded-md text-sm flex items-center gap-2 relative">🔄 Sync Now<span id="sync-queue-count" class="queue-badge hidden">0</span></button>
+                <button onclick="syncEngine.processQueue()" id="btn-sync-now" class="btn-primary px-4 py-2 rounded-md text-sm flex items-center gap-2 relative">
+                    🔄 Sync Now
+                    <span id="sync-queue-count" class="queue-badge hidden">0</span>
+                </button>
                 <button onclick="pullFromCloud()" class="bg-indigo-600 text-white px-4 py-2 rounded-md text-sm hover:bg-indigo-700">☁️ Pull Cloud Data</button>
                 <button onclick="document.getElementById('import-data-input').click()" class="btn-outline px-4 py-2 rounded-md text-sm">📥 Import Offline File (.json)</button>
                 <input type="file" id="import-data-input" class="hidden" accept=".json" onchange="importOfflineData(event)">
@@ -227,6 +419,7 @@
                 <button onclick="backupLocal()" class="bg-gray-600 text-white px-4 py-2 rounded-md text-sm hover:bg-gray-700">Backup (.json)</button>
                 <button onclick="exportSPSS()" class="bg-indigo-600 text-white px-4 py-2 rounded-md text-sm hover:bg-indigo-700">Export SPSS (.csv & .sps)</button>
             </div>
+
             <div class="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
                 <div class="p-4 border-b border-gray-200 flex justify-between items-center">
                     <h3 class="font-semibold text-gray-800">Participant Records</h3>
@@ -234,115 +427,141 @@
                 </div>
                 <div class="overflow-x-auto">
                     <table class="min-w-full divide-y divide-gray-200">
-                        <thead class="bg-gray-50"><tr>
-                            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
-                            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Participant ID</th>
-                            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Project ID</th>
-                            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Time</th>
-                            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Duration</th>
-                            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Action</th>
-                        </tr></thead>
+                        <thead class="bg-gray-50">
+                            <tr>
+                                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
+                                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Participant ID</th>
+                                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Project ID</th>
+                                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Time</th>
+                                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Duration</th>
+                                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Action</th>
+                            </tr>
+                        </thead>
                         <tbody id="data-table-body" class="bg-white divide-y divide-gray-200">
                             <tr><td colspan="6" class="px-4 py-8 text-center text-gray-500">No participants recorded yet.</td></tr>
                         </tbody>
                     </table>
                 </div>
             </div>
+
+            <!-- Google Apps Script Setup Guide -->
             <div class="bg-gray-50 p-6 rounded-xl border border-gray-200">
                 <h3 class="font-bold text-gray-800 mb-3">📋 Google Apps Script Setup Guide</h3>
                 <p class="text-sm text-gray-600 mb-3">To enable Google Sheets sync, create a new Apps Script project and paste this code:</p>
                 <button onclick="copyAppsScript()" class="bg-blue-600 text-white px-4 py-2 rounded font-bold text-sm mb-3 hover:bg-blue-700">📋 Copy Apps Script Code</button>
                 <div class="bg-gray-900 text-green-400 p-4 rounded text-xs font-mono overflow-x-auto max-h-64 overflow-y-auto" id="apps-script-code">
-// === GOOGLE APPS SCRIPT (Code.gs) ===
-// Deploy as Web App: Execute as Me, Access: Anyone
+                    // === GOOGLE APPS SCRIPT (Code.gs) ===
+                    // Deploy as Web App: Execute as Me, Access: Anyone
 
-function doPost(e) {
-  try {
-    var data = JSON.parse(e.postData.contents);
-    if (data.test === true) {
-      return ContentService.createTextOutput(JSON.stringify({
-        success: true, message: "Connection test successful",
-        timestamp: new Date().toISOString()
-      })).setMimeType(ContentService.MimeType.JSON);
-    }
-    var ss = SpreadsheetApp.getActiveSpreadsheet();
-    var sheet = ss.getSheetByName("Submissions");
-    if (!sheet) { sheet = ss.insertSheet("Submissions"); }
-    var baseHeaders = ["id","participantId","projectId","timestamp","duration_sec","syncStatus","checksum"];
-    var answerKeys = [];
-    if (data.answers) {
-      Object.keys(data.answers).forEach(function(k) {
-        if (k !== "_duration_sec" && !k.startsWith("_")) answerKeys.push(k);
-      });
-    }
-    var allHeaders = baseHeaders.concat(answerKeys);
-    var existingHeaders = [];
-    if (sheet.getLastRow() > 0) {
-      existingHeaders = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
-    }
-    if (existingHeaders.length === 0 || existingHeaders[0] === "" || existingHeaders[0] === null) {
-      sheet.getRange(1, 1, 1, allHeaders.length).setValues([allHeaders]);
-      sheet.getRange(1, 1, 1, allHeaders.length)
-        .setFontWeight("bold").setBackground("#4285f4").setFontColor("white");
-      existingHeaders = allHeaders;
-    } else {
-      var newHeaders = [];
-      allHeaders.forEach(function(h) { if (existingHeaders.indexOf(h) === -1) newHeaders.push(h); });
-      if (newHeaders.length > 0) {
-        var startCol = existingHeaders.length + 1;
-        sheet.getRange(1, startCol, 1, newHeaders.length).setValues([newHeaders]);
-        sheet.getRange(1, startCol, 1, newHeaders.length)
-          .setFontWeight("bold").setBackground("#4285f4").setFontColor("white");
-        existingHeaders = existingHeaders.concat(newHeaders);
-      }
-    }
-    var meta = {
-      id: data.id || "", participantId: data.participantId || "", projectId: data.projectId || "",
-      timestamp: data.timestamp ? new Date(data.timestamp).toISOString() : "",
-      duration_sec: data.answers && data.answers._duration_sec ? data.answers._duration_sec : "",
-      syncStatus: data._syncStatus || "synced", checksum: data._checksum || ""
-    };
-    var row = [];
-    existingHeaders.forEach(function(h) {
-      if (meta.hasOwnProperty(h)) row.push(meta[h]);
-      else if (data.answers && data.answers.hasOwnProperty(h)) {
-        var val = data.answers[h];
-        if (Array.isArray(val)) row.push(val.join("|"));
-        else if (typeof val === "string" && val.length > 50000) row.push(val.substring(0, 50000) + "...[truncated]");
-        else row.push(val);
-      } else row.push("");
-    });
-    sheet.appendRow(row);
-    return ContentService.createTextOutput(JSON.stringify({
-      success: true, message: "Record saved", id: data.id, row: sheet.getLastRow()
-    })).setMimeType(ContentService.MimeType.JSON);
-  } catch (error) {
-    return ContentService.createTextOutput(JSON.stringify({
-      success: false, error: error.toString()
-    })).setMimeType(ContentService.MimeType.JSON);
-  }
-}
+                    function doPost(e) {
+                      try {
+                        var data = JSON.parse(e.postData.contents);
 
-function doGet(e) {
-  return ContentService.createTextOutput(JSON.stringify({
-    status: "active", version: "1.0", timestamp: new Date().toISOString()
-  })).setMimeType(ContentService.MimeType.JSON);
-}
+                        if (data.test === true) {
+                          return ContentService.createTextOutput(JSON.stringify({
+                            success: true, message: "Connection test successful",
+                            timestamp: new Date().toISOString()
+                          })).setMimeType(ContentService.MimeType.JSON);
+                        }
+
+                        var ss = SpreadsheetApp.getActiveSpreadsheet();
+                        var sheet = ss.getSheetByName("Submissions");
+                        if (!sheet) {
+                          sheet = ss.insertSheet("Submissions");
+                        }
+
+                        var baseHeaders = ["id","participantId","projectId","timestamp","duration_sec","syncStatus","checksum"];
+                        var answerKeys = [];
+                        if (data.answers) {
+                          Object.keys(data.answers).forEach(function(k) {
+                            if (k !== "_duration_sec" && !k.startsWith("_")) answerKeys.push(k);
+                          });
+                        }
+                        var allHeaders = baseHeaders.concat(answerKeys);
+
+                        var existingHeaders = [];
+                        if (sheet.getLastRow() > 0) {
+                          existingHeaders = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
+                        }
+
+                        if (existingHeaders.length === 0 || existingHeaders[0] === "" || existingHeaders[0] === null) {
+                          sheet.getRange(1, 1, 1, allHeaders.length).setValues([allHeaders]);
+                          sheet.getRange(1, 1, 1, allHeaders.length)
+                            .setFontWeight("bold").setBackground("#4285f4").setFontColor("white");
+                          existingHeaders = allHeaders;
+                        } else {
+                          var newHeaders = [];
+                          allHeaders.forEach(function(h) {
+                            if (existingHeaders.indexOf(h) === -1) newHeaders.push(h);
+                          });
+                          if (newHeaders.length > 0) {
+                            var startCol = existingHeaders.length + 1;
+                            sheet.getRange(1, startCol, 1, newHeaders.length).setValues([newHeaders]);
+                            sheet.getRange(1, startCol, 1, newHeaders.length)
+                              .setFontWeight("bold").setBackground("#4285f4").setFontColor("white");
+                            existingHeaders = existingHeaders.concat(newHeaders);
+                          }
+                        }
+
+                        var meta = {
+                          id: data.id || "",
+                          participantId: data.participantId || "",
+                          projectId: data.projectId || "",
+                          timestamp: data.timestamp ? new Date(data.timestamp).toISOString() : "",
+                          duration_sec: data.answers && data.answers._duration_sec ? data.answers._duration_sec : "",
+                          syncStatus: data._syncStatus || "synced",
+                          checksum: data._checksum || ""
+                        };
+
+                        var row = [];
+                        existingHeaders.forEach(function(h) {
+                          if (meta.hasOwnProperty(h)) row.push(meta[h]);
+                          else if (data.answers && data.answers.hasOwnProperty(h)) {
+                            var val = data.answers[h];
+                            if (Array.isArray(val)) row.push(val.join("|"));
+                            else if (typeof val === "string" && val.length > 50000) row.push(val.substring(0, 50000) + "...[truncated]");
+                            else row.push(val);
+                          } else row.push("");
+                        });
+
+                        sheet.appendRow(row);
+
+                        return ContentService.createTextOutput(JSON.stringify({
+                          success: true, message: "Record saved", id: data.id, row: sheet.getLastRow()
+                        })).setMimeType(ContentService.MimeType.JSON);
+
+                      } catch (error) {
+                        return ContentService.createTextOutput(JSON.stringify({
+                          success: false, error: error.toString()
+                        })).setMimeType(ContentService.MimeType.JSON);
+                      }
+                    }
+
+                    function doGet(e) {
+                      return ContentService.createTextOutput(JSON.stringify({
+                        status: "active", version: "1.0", timestamp: new Date().toISOString()
+                      })).setMimeType(ContentService.MimeType.JSON);
+                    }
                 </div>
             </div>
         </section>
     </main>
 
+    <!-- ================= MODALS ================= -->
+    <!-- Analytics Modal -->
     <div id="modal-analytics" class="fixed inset-0 z-50 hidden flex items-center justify-center modal-bg">
         <div class="bg-white rounded-lg shadow-xl w-full max-w-5xl max-h-[90vh] overflow-hidden flex flex-col">
             <div class="p-4 border-b flex justify-between items-center">
                 <h3 class="text-lg font-bold text-primary">Live Frequency Distributions</h3>
                 <button onclick="closeModal('modal-analytics')" class="text-gray-500 hover:text-gray-700 text-2xl">&times;</button>
             </div>
-            <div id="analytics-content" class="p-6 overflow-y-auto flex-1"></div>
+            <div id="analytics-content" class="p-6 overflow-y-auto flex-1">
+                <!-- Charts injected here -->
+            </div>
         </div>
     </div>
 
+    <!-- Apps Script Guide Modal -->
     <div id="modal-guide" class="fixed inset-0 z-50 hidden flex items-center justify-center modal-bg">
         <div class="bg-white rounded-lg shadow-xl w-full max-w-2xl max-h-[90vh] overflow-hidden flex flex-col">
             <div class="p-4 border-b flex justify-between items-center">
@@ -350,24 +569,51 @@ function doGet(e) {
                 <button onclick="closeModal('modal-guide')" class="text-gray-500 hover:text-gray-700 text-2xl">&times;</button>
             </div>
             <div class="p-6 overflow-y-auto flex-1 space-y-4">
-                <div class="bg-blue-50 p-4 rounded border border-blue-200"><h4 class="font-bold text-blue-900 mb-2">Step 1: Create the Script</h4>
-                    <ol class="list-decimal list-inside text-sm text-blue-800 space-y-1"><li>Open your Google Sheet</li><li>Click <b>Extensions → Apps Script</b></li><li>Delete the default <code>myFunction</code></li><li>Paste the code from the Data Hub below</li></ol></div>
-                <div class="bg-green-50 p-4 rounded border border-green-200"><h4 class="font-bold text-green-900 mb-2">Step 2: Deploy as Web App</h4>
-                    <ol class="list-decimal list-inside text-sm text-green-800 space-y-1"><li>Click <b>Deploy → New Deployment</b></li><li>Select type: <b>Web App</b></li><li><b>Execute as:</b> Me</li><li><b>Who has access:</b> Anyone</li><li>Click <b>Deploy</b> and authorize</li><li>Copy the Web App URL</li></ol></div>
-                <div class="bg-purple-50 p-4 rounded border border-purple-200"><h4 class="font-bold text-purple-900 mb-2">Step 3: Connect to Platform</h4>
-                    <ol class="list-decimal list-inside text-sm text-purple-800 space-y-1"><li>Paste the URL in Builder → "Google Sheet URL"</li><li>Click <b>Test Connection</b> to verify</li><li>Export Online App and start collecting!</li></ol></div>
+                <div class="bg-blue-50 p-4 rounded border border-blue-200">
+                    <h4 class="font-bold text-blue-900 mb-2">Step 1: Create the Script</h4>
+                    <ol class="list-decimal list-inside text-sm text-blue-800 space-y-1">
+                        <li>Open your Google Sheet</li>
+                        <li>Click <b>Extensions → Apps Script</b></li>
+                        <li>Delete the default <code>myFunction</code></li>
+                        <li>Paste the code from the Data Hub below</li>
+                    </ol>
+                </div>
+                <div class="bg-green-50 p-4 rounded border border-green-200">
+                    <h4 class="font-bold text-green-900 mb-2">Step 2: Deploy as Web App</h4>
+                    <ol class="list-decimal list-inside text-sm text-green-800 space-y-1">
+                        <li>Click <b>Deploy → New Deployment</b></li>
+                        <li>Select type: <b>Web App</b></li>
+                        <li><b>Execute as:</b> Me</li>
+                        <li><b>Who has access:</b> Anyone</li>
+                        <li>Click <b>Deploy</b> and authorize</li>
+                        <li>Copy the Web App URL</li>
+                    </ol>
+                </div>
+                <div class="bg-purple-50 p-4 rounded border border-purple-200">
+                    <h4 class="font-bold text-purple-900 mb-2">Step 3: Connect to Platform</h4>
+                    <ol class="list-decimal list-inside text-sm text-purple-800 space-y-1">
+                        <li>Paste the URL in Builder → "Google Sheet URL"</li>
+                        <li>Click <b>Test Connection</b> to verify</li>
+                        <li>Export Online App and start collecting!</li>
+                    </ol>
+                </div>
             </div>
         </div>
     </div>
 
+    <!-- Toast Container -->
     <div id="toast-container"></div>
 
     <script>
-        // ============ 0. UTILITIES ============
+        // ==========================================
+        // 0. UTILITY FUNCTIONS
+        // ==========================================
         function esc(str) {
             if (str === null || str === undefined) return '';
-            return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+            return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g,
+                '&#39;');
         }
+
         function showToast(message, type = 'info', duration = 3000) {
             const container = document.getElementById('toast-container');
             const toast = document.createElement('div');
@@ -375,22 +621,32 @@ function doGet(e) {
             toast.textContent = message;
             container.appendChild(toast);
             setTimeout(() => toast.classList.add('show'), 10);
-            setTimeout(() => { toast.classList.remove('show'); setTimeout(() => toast.remove(), 300); }, duration);
+            setTimeout(() => {
+                toast.classList.remove('show');
+                setTimeout(() => toast.remove(), 300);
+            }, duration);
         }
+
         function formatSPSS(name) {
             let clean = name.replace(/\s+/g, '_').replace(/[^a-zA-Z0-9_]/g, '');
             return (!/^[a-zA-Z@]/.test(clean) && clean.length > 0) ? 'V_' + clean : clean;
         }
+
         function downloadFile(content, fileName, mimeType) {
             const blob = new Blob([content], { type: mimeType });
             const url = URL.createObjectURL(blob);
             const a = document.createElement('a');
-            a.href = url; a.download = fileName;
-            document.body.appendChild(a); a.click(); document.body.removeChild(a);
+            a.href = url;
+            a.download = fileName;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
             URL.revokeObjectURL(url);
         }
 
-        // ============ 1. DEXIE DB ============
+        // ==========================================
+        // 1. DEXIE DATABASE SETUP
+        // ==========================================
         const db = new Dexie("ClinicalDataDB_V18");
         db.version(1).stores({
             submissions: 'id, participantId, projectId, timestamp',
@@ -398,23 +654,34 @@ function doGet(e) {
             syncLog: '++logId, recordId, action, timestamp, details'
         });
 
-        // ============ 2. CONNECTION MONITOR ============
+        // ==========================================
+        // 2. CONNECTION MONITOR
+        // ==========================================
         function updateConnectionStatus() {
             const dot = document.getElementById('conn-dot');
             const text = document.getElementById('conn-text');
             const statusEl = document.getElementById('connection-status');
             if (navigator.onLine) {
-                dot.className = 'sync-indicator sync-dot-synced'; text.textContent = 'Online';
-                statusEl.className = 'flex items-center gap-2 px-3 py-1.5 rounded-full bg-green-100 text-green-800 text-xs font-bold';
+                dot.className = 'sync-indicator sync-dot-synced';
+                text.textContent = 'Online';
+                statusEl.className =
+                'flex items-center gap-2 px-3 py-1.5 rounded-full bg-green-100 text-green-800 text-xs font-bold';
             } else {
-                dot.className = 'sync-indicator sync-dot-failed'; text.textContent = 'Offline';
-                statusEl.className = 'flex items-center gap-2 px-3 py-1.5 rounded-full bg-red-100 text-red-800 text-xs font-bold';
+                dot.className = 'sync-indicator sync-dot-failed';
+                text.textContent = 'Offline';
+                statusEl.className =
+                    'flex items-center gap-2 px-3 py-1.5 rounded-full bg-red-100 text-red-800 text-xs font-bold';
             }
         }
-        window.addEventListener('online', () => { updateConnectionStatus(); if (syncEngine) syncEngine.processQueue(); });
+        window.addEventListener('online', () => {
+            updateConnectionStatus();
+            if (syncEngine) syncEngine.processQueue();
+        });
         window.addEventListener('offline', updateConnectionStatus);
 
-        // ============ 3. VALIDATOR ============
+        // ==========================================
+        // 3. DATA VALIDATOR
+        // ==========================================
         class DataValidator {
             static validateRecord(record, project) {
                 const errors = [];
@@ -423,140 +690,264 @@ function doGet(e) {
                 if (!record.projectId) errors.push("Missing Project ID");
                 if (!record.timestamp) errors.push("Missing timestamp");
                 if (!record.answers || Object.keys(record.answers).length === 0) errors.push("Empty answers");
+
                 if (project && project.pages) {
                     project.pages.forEach(page => {
                         page.items.forEach(item => {
                             if (item.req) {
                                 const val = record.answers[item.vName];
-                                const isEmpty = val === undefined || val === null || val === '' || (Array.isArray(val) && val.length === 0);
-                                if (isEmpty) errors.push('Required: ' + item.vName);
+                                const isEmpty = val === undefined || val === null || val === '' || (Array.isArray(
+                                val) && val.length === 0);
+                                if (isEmpty) errors.push(`Required: ${item.vName}`);
                             }
                             if (item.type === 'number' && record.answers[item.vName] !== undefined) {
                                 const num = Number(record.answers[item.vName]);
-                                if (isNaN(num)) errors.push(item.vName + ' must be numeric');
-                                if (item.min !== undefined && num < item.min) errors.push(item.vName + ' below min ' + item.min);
-                                if (item.max !== undefined && num > item.max) errors.push(item.vName + ' above max ' + item.max);
+                                if (isNaN(num)) errors.push(`${item.vName} must be numeric`);
+                                if (item.min !== undefined && num < item.min) errors.push(
+                                    `${item.vName} below min ${item.min}`);
+                                if (item.max !== undefined && num > item.max) errors.push(
+                                    `${item.vName} above max ${item.max}`);
                             }
                         });
                     });
                 }
                 return { valid: errors.length === 0, errors };
             }
+
             static generateChecksum(record) {
                 const str = JSON.stringify(record.answers) + record.participantId + record.projectId;
                 let hash = 0;
-                for (let i = 0; i < str.length; i++) { const char = str.charCodeAt(i); hash = ((hash << 5) - hash) + char; hash = hash & hash; }
+                for (let i = 0; i < str.length; i++) {
+                    const char = str.charCodeAt(i);
+                    hash = ((hash << 5) - hash) + char;
+                    hash = hash & hash;
+                }
                 return Math.abs(hash).toString(16).padStart(8, '0');
             }
         }
 
-        // ============ 4. SYNC ENGINE ============
+        // ==========================================
+        // 4. SYNC ENGINE
+        // ==========================================
         class SyncEngine {
-            constructor(projectRef) { this.project = projectRef; this.isProcessing = false; this.retryDelays = [2000,5000,15000,30000,60000]; this.maxRetries = 5; this.online = navigator.onLine; }
-            updateProject(projectRef) { this.project = projectRef; }
+            constructor(projectRef) {
+                this.project = projectRef;
+                this.isProcessing = false;
+                this.retryDelays = [2000, 5000, 15000, 30000, 60000];
+                this.maxRetries = 5;
+                this.online = navigator.onLine;
+            }
+
+            updateProject(projectRef) {
+                this.project = projectRef;
+            }
+
             async save(record) {
                 const validation = DataValidator.validateRecord(record, this.project);
-                if (!validation.valid) { showToast('Validation failed: ' + validation.errors.join(', '), 'error', 5000); throw new Error('Validation failed'); }
+                if (!validation.valid) {
+                    showToast('Validation failed: ' + validation.errors.join(', '), 'error', 5000);
+                    throw new Error('Validation failed');
+                }
+
                 record._checksum = DataValidator.generateChecksum(record);
-                record._version = 1; record._syncStatus = 'pending'; record._syncAttempts = 0;
-                record._lastSyncAttempt = null; record._syncError = null; record._createdAt = Date.now(); record._modifiedAt = Date.now();
+                record._version = 1;
+                record._syncStatus = 'pending';
+                record._syncAttempts = 0;
+                record._lastSyncAttempt = null;
+                record._syncError = null;
+                record._createdAt = Date.now();
+                record._modifiedAt = Date.now();
+
                 await db.submissions.put(record);
-                await db.syncQueue.put({ id: record.id, status: 'pending', attempts: 0, lastAttempt: null, error: null, timestamp: record.timestamp });
-                await db.syncLog.add({ recordId: record.id, action: 'saved_locally', timestamp: Date.now(), details: 'Record saved to IndexedDB' });
-                if (this.online) this.processQueue(); else showToast('Saved locally. Will sync when online.', 'warning');
+                await db.syncQueue.put({
+                    id: record.id,
+                    status: 'pending',
+                    attempts: 0,
+                    lastAttempt: null,
+                    error: null,
+                    timestamp: record.timestamp
+                });
+                await db.syncLog.add({
+                    recordId: record.id,
+                    action: 'saved_locally',
+                    timestamp: Date.now(),
+                    details: 'Record saved to IndexedDB'
+                });
+
+                if (this.online) {
+                    this.processQueue();
+                } else {
+                    showToast('Saved locally. Will sync when online.', 'warning');
+                }
+
                 this.updateUI();
                 return record;
             }
+
             async processQueue() {
                 if (this.isProcessing || !this.online) return;
                 this.isProcessing = true;
+
                 try {
                     const pending = await db.syncQueue.where('status').anyOf('pending', 'failed').toArray();
                     if (pending.length === 0) { this.isProcessing = false; return; }
+
                     showToast('Syncing ' + pending.length + ' record(s)...', 'info');
+
                     for (const queueItem of pending) {
                         const record = await db.submissions.get(queueItem.id);
                         if (!record) { await db.syncQueue.delete(queueItem.id); continue; }
+
                         const success = await this.syncRecord(record);
+
                         if (success) {
-                            await db.syncQueue.update(queueItem.id, { status: 'synced', lastAttempt: Date.now(), error: null });
-                            await db.submissions.update(queueItem.id, { _syncStatus: 'synced', _lastSyncAttempt: Date.now(), _syncError: null });
-                            await db.syncLog.add({ recordId: queueItem.id, action: 'synced', timestamp: Date.now(), details: 'Synced to cloud' });
+                            await db.syncQueue.update(queueItem.id, { status: 'synced', lastAttempt: Date.now(),
+                                error: null });
+                            await db.submissions.update(queueItem.id, { _syncStatus: 'synced',
+                                _lastSyncAttempt: Date.now(), _syncError: null });
+                            await db.syncLog.add({ recordId: queueItem.id, action: 'synced', timestamp: Date.now(),
+                                details: 'Synced to cloud' });
                         } else {
                             const newAttempts = (queueItem.attempts || 0) + 1;
                             const status = newAttempts >= this.maxRetries ? 'failed' : 'pending';
-                            await db.syncQueue.update(queueItem.id, { status, attempts: newAttempts, lastAttempt: Date.now(), error: record._syncError || 'Unknown' });
-                            await db.submissions.update(queueItem.id, { _syncStatus: status, _syncAttempts: newAttempts, _lastSyncAttempt: Date.now() });
+                            await db.syncQueue.update(queueItem.id, { status, attempts: newAttempts,
+                                lastAttempt: Date.now(), error: record._syncError || 'Unknown' });
+                            await db.submissions.update(queueItem.id, { _syncStatus: status,
+                                _syncAttempts: newAttempts, _lastSyncAttempt: Date.now() });
                         }
                     }
+
                     const remaining = await db.syncQueue.where('status').anyOf('pending', 'failed').count();
-                    if (remaining > 0) { showToast(remaining + ' still pending. Retrying...', 'warning'); setTimeout(() => this.processQueue(), this.retryDelays[0]); }
-                    else showToast('All records synced!', 'success');
-                } catch (e) { console.error('Sync error:', e); showToast('Sync error: ' + e.message, 'error'); }
-                finally { this.isProcessing = false; this.updateUI(); }
+                    if (remaining > 0) {
+                        showToast(remaining + ' still pending. Retrying...', 'warning');
+                        setTimeout(() => this.processQueue(), this.retryDelays[0]);
+                    } else {
+                        showToast('All records synced!', 'success');
+                    }
+                } catch (e) {
+                    console.error('Sync error:', e);
+                    showToast('Sync error: ' + e.message, 'error');
+                } finally {
+                    this.isProcessing = false;
+                    this.updateUI();
+                }
             }
+
             async syncRecord(record) {
                 let success = false;
+
                 if (this.project.googleUrl) {
                     try {
-                        const response = await fetch(this.project.googleUrl, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(record) });
-                        let result; try { result = await response.json(); } catch (e) { result = { success: response.ok }; }
-                        if (result.success || response.ok) success = true; else record._syncError = result.error || 'Sheet rejected';
+                        const response = await fetch(this.project.googleUrl, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify(record)
+                        });
+                        let result;
+                        try { result = await response.json(); } catch (e) { result = { success: response.ok }; }
+                        if (result.success || response.ok) success = true;
+                        else record._syncError = result.error || 'Sheet rejected';
                     } catch (e) { record._syncError = 'Sheets: ' + e.message; }
                 }
+
                 if (!success && this.project.supabaseUrl) {
                     try {
-                        const response = await fetch(this.project.supabaseUrl, { method: 'POST', headers: { 'Content-Type': 'application/json', 'apikey': this.project.supabaseKey || '', 'Authorization': 'Bearer ' + (this.project.supabaseKey || ''), 'Prefer': 'resolution=merge-duplicates' }, body: JSON.stringify(record) });
-                        if (response.ok) success = true; else { const err = await response.text(); record._syncError = 'Supabase: ' + err; }
+                        const response = await fetch(this.project.supabaseUrl, {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json',
+                                'apikey': this.project.supabaseKey || '',
+                                'Authorization': 'Bearer ' + (this.project.supabaseKey || ''),
+                                'Prefer': 'resolution=merge-duplicates'
+                            },
+                            body: JSON.stringify(record)
+                        });
+                        if (response.ok) success = true;
+                        else { const err = await response.text();
+                            record._syncError = 'Supabase: ' + err; }
                     } catch (e) { record._syncError = 'Supabase: ' + e.message; }
                 }
+
                 return success;
             }
+
             async pullFromCloud() {
-                if (!this.project.supabaseUrl) { showToast('Supabase not configured for pull. Use Google Sheets as primary.', 'warning'); return; }
+                if (!this.project.supabaseUrl) {
+                    showToast('Supabase not configured for pull. Use Google Sheets as primary.', 'warning');
+                    return;
+                }
                 try {
                     const fetchUrl = new URL(this.project.supabaseUrl);
                     fetchUrl.searchParams.append('projectId', 'eq.' + this.project.id);
-                    const res = await fetch(fetchUrl.toString(), { headers: { 'apikey': this.project.supabaseKey || '', 'Authorization': 'Bearer ' + (this.project.supabaseKey || '') } });
+                    const res = await fetch(fetchUrl.toString(), {
+                        headers: { 'apikey': this.project.supabaseKey || '',
+                        'Authorization': 'Bearer ' + (this.project.supabaseKey || '') }
+                    });
                     if (!res.ok) throw new Error('Fetch failed: ' + res.status);
                     const rows = await res.json();
+
                     if (Array.isArray(rows)) {
-                        let imported = 0, conflicts = 0;
+                        let imported = 0,
+                            conflicts = 0;
                         for (let r of rows) {
                             const existing = await db.submissions.get(r.id);
-                            if (!existing) { r._syncStatus = 'synced'; await db.submissions.put(r); await db.syncQueue.put({ id: r.id, status: 'synced', attempts: 0, lastAttempt: Date.now(), error: null, timestamp: r.timestamp }); imported++; }
-                            else { const remoteChecksum = DataValidator.generateChecksum(r); if (remoteChecksum !== existing._checksum) { conflicts++; await db.submissions.update(r.id, { _syncStatus: 'conflict', _conflictRemote: r, _conflictDetectedAt: Date.now() }); } }
+                            if (!existing) {
+                                r._syncStatus = 'synced';
+                                await db.submissions.put(r);
+                                await db.syncQueue.put({ id: r.id, status: 'synced', attempts: 0,
+                                    lastAttempt: Date.now(), error: null, timestamp: r.timestamp });
+                                imported++;
+                            } else {
+                                const remoteChecksum = DataValidator.generateChecksum(r);
+                                if (remoteChecksum !== existing._checksum) {
+                                    conflicts++;
+                                    await db.submissions.update(r.id, { _syncStatus: 'conflict',
+                                        _conflictRemote: r, _conflictDetectedAt: Date.now() });
+                                }
+                            }
                         }
-                        showToast('Pulled ' + imported + ' new records. ' + conflicts + ' conflicts.', conflicts > 0 ? 'warning' : 'success');
+                        showToast('Pulled ' + imported + ' new records. ' + conflicts + ' conflicts.', conflicts > 0 ?
+                            'warning' : 'success');
                         this.updateUI();
                         return { imported, conflicts };
                     }
-                } catch (e) { showToast('Pull failed: ' + e.message, 'error'); throw e; }
+                } catch (e) {
+                    showToast('Pull failed: ' + e.message, 'error');
+                    throw e;
+                }
             }
+
             async getStats() {
                 const total = await db.submissions.where({ projectId: this.project.id }).count();
-                const synced = await db.submissions.where({ projectId: this.project.id }).filter(r => r._syncStatus === 'synced').count();
+                const synced = await db.submissions.where({ projectId: this.project.id }).filter(r => r._syncStatus ===
+                    'synced').count();
                 const pending = await db.syncQueue.where('status').equals('pending').count();
                 const failed = await db.syncQueue.where('status').equals('failed').count();
                 return { total, synced, pending, failed };
             }
+
             updateUI() {
                 this.getStats().then(stats => {
                     document.getElementById('stat-total').textContent = stats.total;
                     document.getElementById('stat-synced').textContent = stats.synced;
                     document.getElementById('stat-pending').textContent = stats.pending;
                     document.getElementById('stat-failed').textContent = stats.failed;
+
                     const queueCount = stats.pending + stats.failed;
                     const badge = document.getElementById('hub-queue-badge');
                     const syncBadge = document.getElementById('sync-queue-count');
                     const pendingLabel = document.getElementById('pending-count');
+
                     if (queueCount > 0) {
-                        badge.textContent = queueCount; badge.classList.remove('hidden');
-                        syncBadge.textContent = queueCount; syncBadge.classList.remove('hidden');
+                        badge.textContent = queueCount;
+                        badge.classList.remove('hidden');
+                        syncBadge.textContent = queueCount;
+                        syncBadge.classList.remove('hidden');
                         pendingLabel.textContent = queueCount + ' Pending Sync';
                         pendingLabel.className = 'text-xs bg-red-100 text-red-800 px-2 py-1 rounded-full';
                     } else {
-                        badge.classList.add('hidden'); syncBadge.classList.add('hidden');
+                        badge.classList.add('hidden');
+                        syncBadge.classList.add('hidden');
                         pendingLabel.textContent = '0 Pending Sync';
                         pendingLabel.className = 'text-xs bg-green-100 text-green-800 px-2 py-1 rounded-full';
                     }
@@ -564,15 +955,20 @@ function doGet(e) {
             }
         }
 
-        // ============ 5. SPSS ENGINE ============
+        // ==========================================
+        // 5. ENHANCED SPSS DATA ENGINE
+        // ==========================================
         class SPSSDataEngine {
             constructor() { this.codebook = {}; }
+
             sanitizeVarName(rawName, prefix) {
-                let cleanName = rawName.replace(/[^a-zA-Z0-9_]/g, "_").replace(/_+/g, "_").replace(/^_+|_+$/g, "");
+                let cleanName = rawName.replace(/[^-]/g, "").replace(/[^a-zA-Z0-9_]/g, "_").replace(/_+/g, "_").replace(
+                    /^_+|_+$/g, "");
                 if (!/^[a-zA-Z]/.test(cleanName)) cleanName = "var_" + cleanName;
                 cleanName = cleanName.substring(0, 64);
                 return prefix ? prefix + "_" + cleanName : cleanName;
             }
+
             prepareDataForExport(answers, duration, projectConfig, participantId) {
                 let flatRow = {};
                 flatRow['ParticipantID'] = participantId || ('P_' + Date.now().toString(36));
@@ -580,76 +976,136 @@ function doGet(e) {
                 flatRow['Timestamp'] = new Date().toISOString();
                 flatRow['Duration_Sec'] = duration || 0;
                 flatRow['Language'] = currentInspectLang || 'EN';
+
                 projectConfig.pages.forEach(function(page, pIdx) {
                     page.items.forEach(function(item, iIdx) {
-                        let varName = item.vName || this.sanitizeVarName(item.title_en || item.title || ("Item_" + iIdx), ("P" + (pIdx + 1)));
+                        let varName = item.vName || this.sanitizeVarName(item.title_en || item.title || (
+                            "Item_" + iIdx), ("P" + (pIdx + 1)));
                         let value = answers[item.vName || item.id];
+
                         if (item.type === 'scale' || item.type === 'likert' || item.type === 'scale10') {
                             flatRow[varName] = value ? Number(value) : null;
-                            this.codebook[varName] = { label: item.title_en || item.title, type: 'Ordinal', format: item.type === 'scale10' ? 'F2.0' : 'F8.0',
-                                values: item.options ? item.options.reduce(function(acc, opt, idx) { acc[opt.value !== undefined ? opt.value : (idx + 1)] = opt.label_en || opt.text || opt.label; return acc; }, {}) : {} };
+                            this.codebook[varName] = {
+                                label: item.title_en || item.title,
+                                type: 'Ordinal',
+                                format: item.type === 'scale10' ? 'F2.0' : 'F8.0',
+                                values: item.options ? item.options.reduce(function(acc, opt, idx) {
+                                    acc[opt.value !== undefined ? opt.value : (idx + 1)] = opt
+                                    .label_en || opt.text || opt.label;
+                                    return acc;
+                                }, {}) : {}
+                            };
                         } else if (item.type === 'number') {
                             flatRow[varName] = value !== undefined ? Number(value) : null;
-                            this.codebook[varName] = { label: item.title_en || item.title, type: 'Scale', format: 'F8.2', values: {} };
+                            this.codebook[varName] = { label: item.title_en || item.title, type: 'Scale',
+                                format: 'F8.2', values: {} };
                         } else if (item.type === 'text') {
                             flatRow[varName] = value ? String(value) : "";
-                            this.codebook[varName] = { label: item.title_en || item.title, type: 'Nominal', format: 'A255', values: {} };
+                            this.codebook[varName] = { label: item.title_en || item.title, type: 'Nominal',
+                                format: 'A255', values: {} };
                         } else if (item.type === 'binary' || item.type === 'mcq') {
                             flatRow[varName] = value !== undefined ? Number(value) : null;
-                            this.codebook[varName] = { label: item.title_en || item.title, type: 'Nominal', format: 'F8.0',
-                                values: item.options ? item.options.reduce(function(acc, opt, idx) { acc[opt.value !== undefined ? opt.value : (idx + 1)] = opt.label_en || opt.text || opt.label; return acc; }, {}) : {} };
+                            this.codebook[varName] = {
+                                label: item.title_en || item.title,
+                                type: 'Nominal',
+                                format: 'F8.0',
+                                values: item.options ? item.options.reduce(function(acc, opt, idx) {
+                                    acc[opt.value !== undefined ? opt.value : (idx + 1)] = opt
+                                    .label_en || opt.text || opt.label;
+                                    return acc;
+                                }, {}) : {}
+                            };
                         } else if (item.type === 'checkbox') {
                             let arr = Array.isArray(value) ? value : [];
                             (item.options || []).forEach(function(opt, oIdx) {
-                                let subVar = varName + '_' + (opt.value !== undefined ? opt.value : (oIdx + 1));
-                                flatRow[subVar] = arr.includes(opt.value !== undefined ? opt.value : (oIdx + 1)) ? 1 : 0;
-                                this.codebook[subVar] = { label: (item.title_en || item.title) + ' - ' + (opt.label_en || opt.text || opt.label), type: 'Nominal', format: 'F1.0', values: { 0: 'Not Selected', 1: 'Selected' } };
+                                let subVar = varName + '_' + (opt.value !== undefined ? opt.value : (oIdx +
+                                1));
+                                flatRow[subVar] = arr.includes(opt.value !== undefined ? opt.value : (
+                                    oIdx + 1)) ? 1 : 0;
+                                this.codebook[subVar] = {
+                                    label: (item.title_en || item.title) + ' - ' + (opt.label_en || opt
+                                        .text || opt.label),
+                                    type: 'Nominal',
+                                    format: 'F1.0',
+                                    values: { 0: 'Not Selected', 1: 'Selected' }
+                                };
                             }.bind(this));
                         } else if (item.type === 'signature' || item.type === 'camera') {
                             flatRow[varName] = value ? 1 : 0;
-                            this.codebook[varName] = { label: item.title_en || item.title, type: 'Nominal', format: 'F1.0', values: { 0: 'Not Captured', 1: 'Captured' } };
+                            this.codebook[varName] = { label: item.title_en || item.title, type: 'Nominal',
+                                format: 'F1.0', values: { 0: 'Not Captured', 1: 'Captured' } };
                         }
                     }.bind(this));
                 }.bind(this));
                 return flatRow;
             }
+
             generateSPSSSyntax(projectConfig) {
-                let syntax = "* SPSS Syntax generated by Clinical Data Dashboard v18.1;\n";
+                let syntax = "* SPSS Syntax generated by Clinical Data Dashboard v18.0;\n";
                 syntax += "* Project: " + (projectConfig.name || 'Untitled') + ";\n";
                 syntax += "* Generated: " + new Date().toISOString() + ";\n\n";
+
                 syntax += "* 1. VARIABLE LABELS;\n";
-                for (const varName in this.codebook) { const meta = this.codebook[varName]; syntax += 'VARIABLE LABELS ' + varName + ' "' + (meta.label || varName).replace(/"/g, '""') + '".\n'; }
+                for (const varName in this.codebook) {
+                    const meta = this.codebook[varName];
+                    syntax += 'VARIABLE LABELS ' + varName + ' "' + (meta.label || varName).replace(/"/g, '""') +
+                    '".\n';
+                }
                 syntax += "EXECUTE.\n\n";
+
                 syntax += "* 2. VALUE LABELS;\n";
                 for (const varName in this.codebook) {
                     const meta = this.codebook[varName];
                     if (Object.keys(meta.values).length > 0) {
-                        let valLabels = Object.entries(meta.values).map(function(entry) { return entry[0] + '="' + entry[1].replace(/"/g, '""') + '"'; }).join(" ");
+                        let valLabels = Object.entries(meta.values).map(function(entry) {
+                            return entry[0] + '="' + entry[1].replace(/"/g, '""') + '"';
+                        }).join(" ");
                         syntax += 'VALUE LABELS ' + varName + ' ' + valLabels + '.\n';
                     }
                 }
                 syntax += "EXECUTE.\n\n";
+
                 syntax += "* 3. VARIABLE FORMATS;\n";
-                for (const varName in this.codebook) { const meta = this.codebook[varName]; if (meta.format) syntax += 'FORMATS ' + varName + ' (' + meta.format + ').\n'; }
+                for (const varName in this.codebook) {
+                    const meta = this.codebook[varName];
+                    if (meta.format) {
+                        syntax += 'FORMATS ' + varName + ' (' + meta.format + ').\n';
+                    }
+                }
                 syntax += "EXECUTE.\n\n";
+
                 syntax += "* 4. MEASUREMENT LEVELS;\n";
-                for (const varName in this.codebook) { const meta = this.codebook[varName]; syntax += 'VARIABLE LEVEL ' + varName + ' (' + (meta.type || 'NOMINAL') + ').\n'; }
+                for (const varName in this.codebook) {
+                    const meta = this.codebook[varName];
+                    syntax += 'VARIABLE LEVEL ' + varName + ' (' + (meta.type || 'NOMINAL') + ').\n';
+                }
                 syntax += "EXECUTE.\n\n";
+
                 syntax += "* 5. MISSING VALUES;\n";
-                for (const varName in this.codebook) { const meta = this.codebook[varName]; if (meta.type === 'Scale' || meta.type === 'Ordinal') syntax += 'MISSING VALUES ' + varName + ' (-99).\n'; }
+                for (const varName in this.codebook) {
+                    const meta = this.codebook[varName];
+                    if (meta.type === 'Scale' || meta.type === 'Ordinal') {
+                        syntax += 'MISSING VALUES ' + varName + ' (-99).\n';
+                    }
+                }
                 syntax += "EXECUTE.\n\n";
+
                 syntax += "* 6. SCALE COMPUTATIONS;\n";
                 let scales = {};
                 if (projectConfig && projectConfig.pages) {
                     projectConfig.pages.forEach(function(page) {
                         page.items.forEach(function(item) {
-                            if (item.scale && item.scale !== 'Unassigned' && item.scale !== 'Demographics' && item.scale !== 'Consent' && item.scale !== 'Documentation' && ['number','scale','likert','scale10'].includes(item.type)) {
+                            if (item.scale && item.scale !== 'Unassigned' && item.scale !==
+                                'Demographics' &&
+                                item.scale !== 'Consent' && item.scale !== 'Documentation' &&
+                                ['number', 'scale', 'likert', 'scale10'].includes(item.type)) {
                                 if (!scales[item.scale]) scales[item.scale] = [];
                                 scales[item.scale].push(item.vName || item.id);
                             }
                         });
                     });
                 }
+
                 for (const scaleName in scales) {
                     const cleanName = scaleName.replace(/\s+/g, '_').replace(/[^a-zA-Z0-9_]/g, '');
                     const vars = scales[scaleName].join(', ');
@@ -658,29 +1114,46 @@ function doGet(e) {
                     syntax += 'VARIABLE LABELS ' + cleanName + '_Total "Total Score for ' + scaleName + '".\n';
                     syntax += 'VARIABLE LABELS ' + cleanName + '_Mean "Mean Score for ' + scaleName + '".\n';
                     syntax += 'FORMATS ' + cleanName + '_Total ' + cleanName + '_Mean (F8.2).\n';
-                    syntax += 'VARIABLE LEVEL ' + cleanName + '_Total ' + cleanName + '_Mean (SCALE).\n\n';
+                    syntax += 'VARIABLE LEVEL ' + cleanName + '_Total ' + cleanName + '_Mean (SCALE).\n';
+                    syntax += '\n';
                 }
                 syntax += "EXECUTE.\n\n";
+
                 syntax += "* 7. RELIABILITY ANALYSIS (Cronbach's Alpha);\n";
                 for (const scaleName in scales) {
                     const vars = scales[scaleName].join(' ');
-                    syntax += 'RELIABILITY VARIABLES=' + vars + '\n  /MODEL=ALPHA\n  /STATISTICS=DESCRIPTIVE SCALE CORR\n  /SUMMARY=TOTAL.\n\n';
+                    syntax += 'RELIABILITY VARIABLES=' + vars + '\n';
+                    syntax += '  /MODEL=ALPHA\n';
+                    syntax += '  /STATISTICS=DESCRIPTIVE SCALE CORR\n';
+                    syntax += '  /SUMMARY=TOTAL.\n\n';
                 }
+
                 return syntax;
             }
         }
 
-        // ============ 6. STATE ============
+        // ==========================================
+        // 6. APP STATE & INITIALIZATION
+        // ==========================================
         const spssEngine = new SPSSDataEngine();
         let syncEngine = null;
+
         let appState = {
             project: {
-                id: 'proj_' + Date.now(), name: 'Untitled Project', theme: '#2563eb', font: "'Segoe UI', sans-serif", pin: '',
-                googleUrl: '', supabaseUrl: '', supabaseKey: '',
-                en: { title: '', authors: '', welcome: '' }, ar: { title: '', authors: '', welcome: '' },
+                id: 'proj_' + Date.now(),
+                name: 'Untitled Project',
+                theme: '#2563eb',
+                font: "'Segoe UI', sans-serif",
+                pin: '',
+                googleUrl: '',
+                supabaseUrl: '',
+                supabaseKey: '',
+                en: { title: '', authors: '', welcome: '' },
+                ar: { title: '', authors: '', welcome: '' },
                 pages: [{ id: 'page_1', title_en: 'Page 1', title_ar: 'الصفحة 1', items: [] }]
             }
         };
+
         let currentInspectLang = 'en';
         let currentInspectPage = 0;
         let inspectAnswers = {};
@@ -688,6 +1161,7 @@ function doGet(e) {
         let inspectParticipantId = '';
         let charts = [];
 
+        // Initialize
         function initApp() {
             syncEngine = new SyncEngine(appState.project);
             updateConnectionStatus();
@@ -695,9 +1169,11 @@ function doGet(e) {
             syncEngine.updateUI();
         }
 
-        // ============ 7. UI CONTROLLERS ============
+        // ==========================================
+        // 7. UI CONTROLLERS
+        // ==========================================
         function switchTab(tab) {
-            ['builder','inspect','hub'].forEach(function(t) {
+            ['builder', 'inspect', 'hub'].forEach(function(t) {
                 document.getElementById('view-' + t).classList.add('hidden');
                 document.getElementById('tab-' + t).classList.remove('tab-active');
                 document.getElementById('tab-' + t).classList.add('text-gray-500');
@@ -705,52 +1181,110 @@ function doGet(e) {
             document.getElementById('view-' + tab).classList.remove('hidden');
             document.getElementById('tab-' + tab).classList.add('tab-active');
             document.getElementById('tab-' + tab).classList.remove('text-gray-500');
-            if (tab === 'inspect') { currentInspectPage = 0; inspectAnswers = {}; inspectStartTime = Date.now(); renderInspectMode(); }
-            if (tab === 'hub') { renderMasterHubTable(); syncEngine.updateUI(); }
+
+            if (tab === 'inspect') { currentInspectPage = 0;
+                inspectAnswers = {};
+                inspectStartTime = Date.now();
+                renderInspectMode(); }
+            if (tab === 'hub') { renderMasterHubTable();
+                syncEngine.updateUI(); }
         }
+
         function closeModal(id) { document.getElementById(id).classList.add('hidden'); }
+
         function showAppsScriptGuide() { document.getElementById('modal-guide').classList.remove('hidden'); }
+
         function copyAppsScript() {
             const code = document.getElementById('apps-script-code').innerText;
             navigator.clipboard.writeText(code).then(() => showToast('Apps Script code copied!', 'success'));
         }
 
-        // ============ 8. BUILDER LOGIC ============
-        function updateTheme() { const color = document.getElementById('cfg-theme').value; document.documentElement.style.setProperty('--theme-color', color); appState.project.theme = color; }
-        function updateFont() { const font = document.getElementById('cfg-font').value; document.body.style.fontFamily = font; appState.project.font = font; }
+        // ==========================================
+        // 8. BUILDER LOGIC
+        // ==========================================
+        function updateTheme() {
+            const color = document.getElementById('cfg-theme').value;
+            document.documentElement.style.setProperty('--theme-color', color);
+            appState.project.theme = color;
+        }
+
+        function updateFont() {
+            const font = document.getElementById('cfg-font').value;
+            document.body.style.fontFamily = font;
+            appState.project.font = font;
+        }
+
         function addNewPage() {
             const pageNum = appState.project.pages.length + 1;
-            appState.project.pages.push({ id: 'page_' + Date.now(), title_en: 'Page ' + pageNum, title_ar: 'الصفحة ' + pageNum, items: [] });
+            appState.project.pages.push({
+                id: 'page_' + Date.now(),
+                title_en: 'Page ' + pageNum,
+                title_ar: 'الصفحة ' + pageNum,
+                items: []
+            });
             renderBuilderPages();
         }
+
         function deletePage(pageIdx) {
-            if (appState.project.pages.length <= 1) { showToast('Cannot delete the only page.', 'error'); return; }
-            if (confirm('Delete this page and all its items?')) { appState.project.pages.splice(pageIdx, 1); renderBuilderPages(); }
+            if (appState.project.pages.length <= 1) {
+                showToast('Cannot delete the only page.', 'error');
+                return;
+            }
+            if (confirm('Delete this page and all its items?')) {
+                appState.project.pages.splice(pageIdx, 1);
+                renderBuilderPages();
+            }
         }
+
         function addNewItem(pageIdx, type) {
-            const typeLabels = { text:'New Text Question', number:'New Number Question', binary:'New Yes/No Question', mcq:'New Multiple Choice', checkbox:'New Checkbox', likert:'New Likert Scale', scale10:'New Scale (1-10)', signature:'New E-Signature', camera:'New Photo Capture' };
-            const defaultOptions = {
-                binary: [{ label_en:'Yes', label_ar:'نعم', value:1 }, { label_en:'No', label_ar:'لا', value:0 }],
-                likert: [
-                    { label_en:'Strongly Disagree', label_ar:'أعارض بشدة', value:1 },
-                    { label_en:'Disagree', label_ar:'أعارض', value:2 },
-                    { label_en:'Neutral', label_ar:'محايد', value:3 },
-                    { label_en:'Agree', label_ar:'أوافق', value:4 },
-                    { label_en:'Strongly Agree', label_ar:'أوافق بشدة', value:5 }
-                ],
-                mcq: [{ label_en:'Option 1', label_ar:'خيار 1', value:1 }, { label_en:'Option 2', label_ar:'خيار 2', value:2 }],
-                checkbox: [{ label_en:'Option 1', label_ar:'خيار 1', value:1 }, { label_en:'Option 2', label_ar:'خيار 2', value:2 }]
+            const typeLabels = {
+                text: 'New Text Question',
+                number: 'New Number Question',
+                binary: 'New Yes/No Question',
+                mcq: 'New Multiple Choice',
+                checkbox: 'New Checkbox',
+                likert: 'New Likert Scale',
+                scale10: 'New Scale (1-10)',
+                signature: 'New E-Signature',
+                camera: 'New Photo Capture'
             };
+            const defaultOptions = {
+                binary: [{ label_en: 'Yes', label_ar: 'نعم', value: 1 }, { label_en: 'No', label_ar: 'لا',
+                    value: 0 }],
+                likert: [
+                    { label_en: 'Strongly Disagree', label_ar: 'أ strongly disagree', value: 1 },
+                    { label_en: 'Disagree', label_ar: 'أ disagree', value: 2 },
+                    { label_en: 'Neutral', label_ar: 'محايد', value: 3 },
+                    { label_en: 'Agree', label_ar: 'أ agree', value: 4 },
+                    { label_en: 'Strongly Agree', label_ar: 'أ strongly agree', value: 5 }
+                ],
+                mcq: [{ label_en: 'Option 1', label_ar: 'خيار 1', value: 1 }, { label_en: 'Option 2',
+                    label_ar: 'خيار 2', value: 2 }],
+                checkbox: [{ label_en: 'Option 1', label_ar: 'خيار 1', value: 1 }, { label_en: 'Option 2',
+                    label_ar: 'خيار 2', value: 2 }]
+            };
+
             const item = {
-                id: 'item_' + Date.now(), vName: formatSPSS('Var_' + Date.now()), type: type,
-                title_en: typeLabels[type] || 'New Question', title_ar: 'سؤال جديد', scale: 'Unassigned', req: false,
+                id: 'item_' + Date.now(),
+                vName: formatSPSS('Var_' + Date.now()),
+                type: type,
+                title_en: typeLabels[type] || 'New Question',
+                title_ar: 'سؤال جديد',
+                scale: 'Unassigned',
+                req: false,
                 options: defaultOptions[type] || []
             };
-            if (type === 'number') { item.min = 0; item.max = 100; }
+            if (type === 'number') { item.min = 0;
+                item.max = 100; }
             appState.project.pages[pageIdx].items.push(item);
             renderBuilderPages();
         }
-        function deleteItem(pageIdx, itemIdx) { appState.project.pages[pageIdx].items.splice(itemIdx, 1); renderBuilderPages(); }
+
+        function deleteItem(pageIdx, itemIdx) {
+            appState.project.pages[pageIdx].items.splice(itemIdx, 1);
+            renderBuilderPages();
+        }
+
         function updateItemField(pageIdx, itemIdx, field, value) {
             const item = appState.project.pages[pageIdx].items[itemIdx];
             if (field === 'vName') item[field] = formatSPSS(value);
@@ -758,6 +1292,7 @@ function doGet(e) {
             else item[field] = value;
             renderBuilderPages();
         }
+
         function updateItemOption(pageIdx, itemIdx, optIdx, field, value) {
             const item = appState.project.pages[pageIdx].items[itemIdx];
             if (!item.options) item.options = [];
@@ -765,6 +1300,7 @@ function doGet(e) {
             if (field === 'value') item.options[optIdx][field] = Number(value);
             else item.options[optIdx][field] = value;
         }
+
         function addOption(pageIdx, itemIdx) {
             const item = appState.project.pages[pageIdx].items[itemIdx];
             if (!item.options) item.options = [];
@@ -772,63 +1308,133 @@ function doGet(e) {
             item.options.push({ label_en: 'Option ' + nextVal, label_ar: 'خيار ' + nextVal, value: nextVal });
             renderBuilderPages();
         }
-        function removeOption(pageIdx, itemIdx, optIdx) { appState.project.pages[pageIdx].items[itemIdx].options.splice(optIdx, 1); renderBuilderPages(); }
+
+        function removeOption(pageIdx, itemIdx, optIdx) {
+            appState.project.pages[pageIdx].items[itemIdx].options.splice(optIdx, 1);
+            renderBuilderPages();
+        }
+
         function updateShowIf(pageIdx, itemIdx, field, value) {
             const item = appState.project.pages[pageIdx].items[itemIdx];
             if (!item.showIf) item.showIf = {};
             item.showIf[field] = value;
         }
 
-        // ============ 8b. RENDER BUILDER ============
+        // ==========================================
+        // 8b. RENDER BUILDER PAGES (FIXED)
+        // ==========================================
         function renderBuilderPages() {
             const container = document.getElementById('builder-pages-container');
             container.innerHTML = '';
+
             appState.project.pages.forEach(function(page, pIdx) {
                 let itemsHtml = page.items.map(function(item, iIdx) {
-                    const typeBadge = { text:'bg-gray-100 text-gray-700', number:'bg-blue-100 text-blue-700', binary:'bg-purple-100 text-purple-700', mcq:'bg-green-100 text-green-700', checkbox:'bg-yellow-100 text-yellow-700', likert:'bg-indigo-100 text-indigo-700', scale10:'bg-pink-100 text-pink-700', signature:'bg-orange-100 text-orange-700', camera:'bg-teal-100 text-teal-700' }[item.type] || 'bg-gray-100 text-gray-700';
+                    const typeBadge = {
+                        text: 'bg-gray-100 text-gray-700',
+                        number: 'bg-blue-100 text-blue-700',
+                        binary: 'bg-purple-100 text-purple-700',
+                        mcq: 'bg-green-100 text-green-700',
+                        checkbox: 'bg-yellow-100 text-yellow-700',
+                        likert: 'bg-indigo-100 text-indigo-700',
+                        scale10: 'bg-pink-100 text-pink-700',
+                        signature: 'bg-orange-100 text-orange-700',
+                        camera: 'bg-teal-100 text-teal-700'
+                    } [item.type] || 'bg-gray-100 text-gray-700';
+
                     let optionsHtml = '';
-                    if (['binary','mcq','likert','checkbox'].includes(item.type) && item.options) {
+                    if (['binary', 'mcq', 'likert', 'checkbox'].includes(item.type) && item.options) {
                         optionsHtml = '<div class="mt-2 bg-gray-50 p-2 rounded border border-dashed">' +
                             item.options.map(function(opt, oIdx) {
                                 return '<div class="flex gap-2 mb-1 items-center">' +
-                                    '<input type="text" value="' + esc(opt.label_en) + '" onchange="updateItemOption(' + pIdx + ',' + iIdx + ',' + oIdx + ',\'label_en\',this.value)" class="flex-1 px-2 py-1 border rounded text-xs" placeholder="EN">' +
-                                    '<input type="text" value="' + esc(opt.label_ar) + '" dir="rtl" onchange="updateItemOption(' + pIdx + ',' + iIdx + ',' + oIdx + ',\'label_ar\',this.value)" class="flex-1 px-2 py-1 border rounded text-xs" placeholder="AR">' +
-                                    '<input type="number" value="' + opt.value + '" onchange="updateItemOption(' + pIdx + ',' + iIdx + ',' + oIdx + ',\'value\',this.value)" class="w-14 px-1 py-1 border rounded text-xs font-mono">' +
-                                    '<button onclick="removeOption(' + pIdx + ',' + iIdx + ',' + oIdx + ')" class="text-red-400 hover:text-red-600 text-xs">×</button></div>';
+                                    '<input type="text" value="' + esc(opt.label_en) +
+                                    '" onchange="updateItemOption(' + pIdx + ',' + iIdx + ',' +
+                                    oIdx + ',\'label_en\',this.value)" class="flex-1 px-2 py-1 border rounded text-xs" placeholder="EN">' +
+                                    '<input type="text" value="' + esc(opt.label_ar) +
+                                    '" dir="rtl" onchange="updateItemOption(' + pIdx + ',' +
+                                    iIdx + ',' + oIdx + ',\'label_ar\',this.value)" class="flex-1 px-2 py-1 border rounded text-xs" placeholder="AR">' +
+                                    '<input type="number" value="' + opt.value +
+                                    '" onchange="updateItemOption(' + pIdx + ',' + iIdx +
+                                    ',' + oIdx + ',\'value\',this.value)" class="w-14 px-1 py-1 border rounded text-xs font-mono">' +
+                                    '<button onclick="removeOption(' + pIdx + ',' + iIdx +
+                                    ',' + oIdx +
+                                    ')" class="text-red-400 hover:text-red-600 text-xs">×</button>' +
+                                    '</div>';
                             }).join('') +
-                            (item.type !== 'binary' ? '<button onclick="addOption(' + pIdx + ',' + iIdx + ')" class="text-xs text-blue-600 font-bold mt-1">+ Add Option</button>' : '') +
+                            (item.type !== 'binary' ? '<button onclick="addOption(' + pIdx +
+                                ',' + iIdx +
+                                ')" class="text-xs text-blue-600 font-bold mt-1">+ Add Option</button>' :
+                                '') +
                             '</div>';
                     }
+
                     let minMaxHtml = '';
                     if (item.type === 'number') {
                         minMaxHtml = '<div class="flex gap-2 mt-2">' +
-                            '<input type="number" value="' + (item.min !== undefined ? item.min : '') + '" onchange="updateItemField(' + pIdx + ',' + iIdx + ',\'min\',Number(this.value))" class="w-20 px-2 py-1 border rounded text-xs" placeholder="Min">' +
-                            '<input type="number" value="' + (item.max !== undefined ? item.max : '') + '" onchange="updateItemField(' + pIdx + ',' + iIdx + ',\'max\',Number(this.value))" class="w-20 px-2 py-1 border rounded text-xs" placeholder="Max"></div>';
+                            '<input type="number" value="' + (item.min !== undefined ? item.min : '') +
+                            '" onchange="updateItemField(' + pIdx + ',' + iIdx +
+                            ',\'min\',Number(this.value))" class="w-20 px-2 py-1 border rounded text-xs" placeholder="Min">' +
+                            '<input type="number" value="' + (item.max !== undefined ? item.max : '') +
+                            '" onchange="updateItemField(' + pIdx + ',' + iIdx +
+                            ',\'max\',Number(this.value))" class="w-20 px-2 py-1 border rounded text-xs" placeholder="Max">' +
+                            '</div>';
                     }
+
                     let showIfHtml = '<div class="flex gap-2 mt-2 items-center bg-indigo-50 p-2 rounded border border-indigo-100">' +
                         '<span class="text-xs font-bold text-indigo-800">⑂ Show if:</span>' +
-                        '<input type="text" value="' + esc(item.showIf?.vName || '') + '" onchange="updateShowIf(' + pIdx + ',' + iIdx + ',\'vName\',this.value)" class="w-24 px-2 py-1 border rounded text-xs" placeholder="Variable">' +
+                        '<input type="text" value="' + esc(item.showIf?.vName || '') +
+                        '" onchange="updateShowIf(' + pIdx + ',' + iIdx +
+                        ',\'vName\',this.value)" class="w-24 px-2 py-1 border rounded text-xs" placeholder="Variable">' +
                         '<span class="text-xs font-bold">==</span>' +
-                        '<input type="text" value="' + esc(item.showIf?.value || '') + '" onchange="updateShowIf(' + pIdx + ',' + iIdx + ',\'value\',this.value)" class="w-16 px-2 py-1 border rounded text-xs" placeholder="Value"></div>';
+                        '<input type="text" value="' + esc(item.showIf?.value || '') +
+                        '" onchange="updateShowIf(' + pIdx + ',' + iIdx +
+                        ',\'value\',this.value)" class="w-16 px-2 py-1 border rounded text-xs" placeholder="Value">' +
+                        '</div>';
+
                     return '<div class="item-card p-3 bg-white rounded border shadow-sm">' +
                         '<div class="flex justify-between items-start mb-2">' +
                         '<div class="flex-1 grid grid-cols-1 md:grid-cols-2 gap-2">' +
-                        '<input type="text" value="' + esc(item.vName) + '" onchange="updateItemField(' + pIdx + ',' + iIdx + ',\'vName\',this.value)" class="px-2 py-1 border rounded text-sm font-mono text-red-600 bg-red-50" placeholder="SPSS Variable Name">' +
-                        '<input type="text" value="' + esc(item.scale) + '" onchange="updateItemField(' + pIdx + ',' + iIdx + ',\'scale\',this.value)" class="px-2 py-1 border rounded text-sm text-purple-800" placeholder="Scale Group">' +
-                        '<input type="text" value="' + esc(item.title_en) + '" onchange="updateItemField(' + pIdx + ',' + iIdx + ',\'title_en\',this.value)" class="px-2 py-1 border rounded text-sm font-semibold" placeholder="Question (EN)">' +
-                        '<input type="text" value="' + esc(item.title_ar) + '" dir="rtl" onchange="updateItemField(' + pIdx + ',' + iIdx + ',\'title_ar\',this.value)" class="px-2 py-1 border rounded text-sm font-semibold" placeholder="السؤال (AR)"></div>' +
+                        '<input type="text" value="' + esc(item.vName) +
+                        '" onchange="updateItemField(' + pIdx + ',' + iIdx +
+                        ',\'vName\',this.value)" class="px-2 py-1 border rounded text-sm font-mono text-red-600 bg-red-50" placeholder="SPSS Variable Name">' +
+                        '<input type="text" value="' + esc(item.scale) +
+                        '" onchange="updateItemField(' + pIdx + ',' + iIdx +
+                        ',\'scale\',this.value)" class="px-2 py-1 border rounded text-sm text-purple-800" placeholder="Scale Group">' +
+                        '<input type="text" value="' + esc(item.title_en) +
+                        '" onchange="updateItemField(' + pIdx + ',' + iIdx +
+                        ',\'title_en\',this.value)" class="px-2 py-1 border rounded text-sm font-semibold" placeholder="Question (EN)">' +
+                        '<input type="text" value="' + esc(item.title_ar) +
+                        '" dir="rtl" onchange="updateItemField(' + pIdx + ',' + iIdx +
+                        ',\'title_ar\',this.value)" class="px-2 py-1 border rounded text-sm font-semibold" placeholder="السؤال (AR)">' +
+                        '</div>' +
                         '<div class="flex items-center gap-2 ml-4">' +
-                        '<span class="text-xs px-2 py-1 rounded font-bold ' + typeBadge + '">' + item.type + '</span>' +
-                        '<label class="flex items-center gap-1 text-xs bg-yellow-50 px-2 py-1 rounded border cursor-pointer"><input type="checkbox" ' + (item.req ? 'checked' : '') + ' onchange="updateItemField(' + pIdx + ',' + iIdx + ',\'req\',this.checked)"> <span class="font-bold text-yellow-800">Req</span></label>' +
-                        '<button onclick="deleteItem(' + pIdx + ',' + iIdx + ')" class="text-red-500 hover:text-red-700 text-sm font-bold">×</button></div></div>' +
-                        showIfHtml + minMaxHtml + optionsHtml + '</div>';
+                        '<span class="text-xs px-2 py-1 rounded font-bold ' + typeBadge + '">' + item
+                        .type + '</span>' +
+                        '<label class="flex items-center gap-1 text-xs bg-yellow-50 px-2 py-1 rounded border cursor-pointer">' +
+                        '<input type="checkbox" ' + (item.req ? 'checked' : '') +
+                        ' onchange="updateItemField(' + pIdx + ',' + iIdx +
+                        ',\'req\',this.checked)"> <span class="font-bold text-yellow-800">Req</span>' +
+                        '</label>' +
+                        '<button onclick="deleteItem(' + pIdx + ',' + iIdx +
+                        ')" class="text-red-500 hover:text-red-700 text-sm font-bold">×</button>' +
+                        '</div>' +
+                        '</div>' +
+                        showIfHtml + minMaxHtml + optionsHtml +
+                        '</div>';
                 }).join('');
+
                 container.innerHTML += '<div class="border border-gray-200 rounded-lg p-4 bg-gray-50">' +
                     '<div class="flex justify-between items-center mb-3">' +
                     '<div class="flex gap-2 flex-1">' +
-                    '<input type="text" value="' + esc(page.title_en) + '" onchange="appState.project.pages[' + pIdx + '].title_en = this.value" class="font-semibold text-gray-700 bg-transparent border-b border-gray-300 focus:border-primary outline-none flex-1" placeholder="Page Title (EN)">' +
-                    '<input type="text" value="' + esc(page.title_ar) + '" dir="rtl" onchange="appState.project.pages[' + pIdx + '].title_ar = this.value" class="font-semibold text-gray-700 bg-transparent border-b border-gray-300 focus:border-primary outline-none flex-1" placeholder="عنوان الصفحة (AR)"></div>' +
-                    '<button onclick="deletePage(' + pIdx + ')" class="text-red-400 hover:text-red-600 text-sm ml-4">Delete Page</button></div>' +
+                    '<input type="text" value="' + esc(page.title_en) +
+                    '" onchange="appState.project.pages[' + pIdx +
+                    '].title_en = this.value" class="font-semibold text-gray-700 bg-transparent border-b border-gray-300 focus:border-primary outline-none flex-1" placeholder="Page Title (EN)">' +
+                    '<input type="text" value="' + esc(page.title_ar) +
+                    '" dir="rtl" onchange="appState.project.pages[' + pIdx +
+                    '].title_ar = this.value" class="font-semibold text-gray-700 bg-transparent border-b border-gray-300 focus:border-primary outline-none flex-1" placeholder="عنوان الصفحة (AR)">' +
+                    '</div>' +
+                    '<button onclick="deletePage(' + pIdx +
+                    ')" class="text-red-400 hover:text-red-600 text-sm ml-4">Delete Page</button>' +
+                    '</div>' +
                     '<div class="flex flex-wrap gap-2 mb-3">' +
                     '<button onclick="addNewItem(' + pIdx + ',\'text\')" class="text-xs bg-gray-100 text-gray-700 px-2 py-1 rounded hover:bg-gray-200">+ Text</button>' +
                     '<button onclick="addNewItem(' + pIdx + ',\'number\')" class="text-xs bg-blue-100 text-blue-700 px-2 py-1 rounded hover:bg-blue-200">+ Number</button>' +
@@ -838,31 +1444,53 @@ function doGet(e) {
                     '<button onclick="addNewItem(' + pIdx + ',\'likert\')" class="text-xs bg-indigo-100 text-indigo-700 px-2 py-1 rounded hover:bg-indigo-200">+ Likert</button>' +
                     '<button onclick="addNewItem(' + pIdx + ',\'scale10\')" class="text-xs bg-pink-100 text-pink-700 px-2 py-1 rounded hover:bg-pink-200">+ Scale 1-10</button>' +
                     '<button onclick="addNewItem(' + pIdx + ',\'signature\')" class="text-xs bg-orange-100 text-orange-700 px-2 py-1 rounded hover:bg-orange-200">+ Signature</button>' +
-                    '<button onclick="addNewItem(' + pIdx + ',\'camera\')" class="text-xs bg-teal-100 text-teal-700 px-2 py-1 rounded hover:bg-teal-200">+ Camera</button></div>' +
-                    '<div class="space-y-2">' + (itemsHtml || '<p class="text-sm text-gray-400 italic">No items yet. Add questions above.</p>') + '</div></div>';
+                    '<button onclick="addNewItem(' + pIdx + ',\'camera\')" class="text-xs bg-teal-100 text-teal-700 px-2 py-1 rounded hover:bg-teal-200">+ Camera</button>' +
+                    '</div>' +
+                    '<div class="space-y-2">' + (itemsHtml || '<p class="text-sm text-gray-400 italic">No items yet. Add questions above.</p>') +
+                    '</div>' +
+                    '</div>';
             });
         }
 
-        // ============ 9. SAVE / LOAD / TEST ============
+        // ==========================================
+        // 9. PROJECT SAVE / LOAD / TEST
+        // ==========================================
         function saveProject() {
             appState.project.name = document.getElementById('project-name-display').innerText;
             appState.project.googleUrl = document.getElementById('cfg-google-url').value;
             appState.project.supabaseUrl = document.getElementById('cfg-supabase-url').value;
             appState.project.supabaseKey = document.getElementById('cfg-supabase-key').value;
             appState.project.pin = document.getElementById('cfg-pin').value;
-            ['en','ar'].forEach(function(lang) {
+
+            ['en', 'ar'].forEach(function(lang) {
                 appState.project[lang].title = document.getElementById('res-title-' + lang).value;
                 appState.project[lang].authors = document.getElementById('res-authors-' + lang).value;
                 appState.project[lang].welcome = document.getElementById('res-welcome-' + lang).value;
             });
+
             localStorage.setItem('clinical_project_state', JSON.stringify(appState));
             if (syncEngine) syncEngine.updateProject(appState.project);
             showToast('Project saved successfully!', 'success');
         }
+
         function createNewProject() {
             if (confirm('Create a new project? Unsaved changes will be lost.')) {
                 localStorage.removeItem('clinical_project_state');
-                appState = { project: { id: 'proj_' + Date.now(), name: 'Untitled Project', theme: '#2563eb', font: "'Segoe UI', sans-serif", pin: '', googleUrl: '', supabaseUrl: '', supabaseKey: '', en: { title:'', authors:'', welcome:'' }, ar: { title:'', authors:'', welcome:'' }, pages: [{ id:'page_1', title_en:'Page 1', title_ar:'الصفحة 1', items: [] }] } };
+                appState = {
+                    project: {
+                        id: 'proj_' + Date.now(),
+                        name: 'Untitled Project',
+                        theme: '#2563eb',
+                        font: "'Segoe UI', sans-serif",
+                        pin: '',
+                        googleUrl: '',
+                        supabaseUrl: '',
+                        supabaseKey: '',
+                        en: { title: '', authors: '', welcome: '' },
+                        ar: { title: '', authors: '', welcome: '' },
+                        pages: [{ id: 'page_1', title_en: 'Page 1', title_ar: 'الصفحة 1', items: [] }]
+                    }
+                };
                 initApp();
                 document.getElementById('project-name-display').innerText = 'Untitled';
                 document.getElementById('cfg-theme').value = '#2563eb';
@@ -871,14 +1499,17 @@ function doGet(e) {
                 document.getElementById('cfg-google-url').value = '';
                 document.getElementById('cfg-supabase-url').value = '';
                 document.getElementById('cfg-supabase-key').value = '';
-                ['en','ar'].forEach(function(lang) {
+                ['en', 'ar'].forEach(function(lang) {
                     document.getElementById('res-title-' + lang).value = '';
                     document.getElementById('res-authors-' + lang).value = '';
                     document.getElementById('res-welcome-' + lang).value = '';
                 });
-                updateTheme(); updateFont(); renderBuilderPages();
+                updateTheme();
+                updateFont();
+                renderBuilderPages();
             }
         }
+
         function loadProject(event) {
             const file = event.target.files[0];
             if (!file) return;
@@ -886,32 +1517,53 @@ function doGet(e) {
             reader.onload = function(e) {
                 try {
                     const loaded = JSON.parse(e.target.result);
-                    if (loaded.project) { appState = loaded; localStorage.setItem('clinical_project_state', JSON.stringify(appState)); location.reload(); }
-                    else showToast('Invalid project file.', 'error');
+                    if (loaded.project) {
+                        appState = loaded;
+                        localStorage.setItem('clinical_project_state', JSON.stringify(appState));
+                        location.reload();
+                    } else {
+                        showToast('Invalid project file.', 'error');
+                    }
                 } catch (err) { showToast('Error loading project: ' + err.message, 'error'); }
             };
             reader.readAsText(file);
         }
+
         async function testGoogleSheetConnection() {
             const url = document.getElementById('cfg-google-url').value;
             if (!url) return showToast('Please enter a Google Sheet URL first.', 'error');
             showToast('Testing connection...', 'info');
             try {
-                const response = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ test: true, timestamp: Date.now() }) });
-                let result; try { result = await response.json(); } catch (e) { result = { success: response.ok }; }
-                if (result.success || response.ok) showToast('Connection successful! Google Sheets is ready.', 'success');
+                const response = await fetch(url, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ test: true, timestamp: Date.now() })
+                });
+                let result;
+                try { result = await response.json(); } catch (e) { result = { success: response.ok }; }
+                if (result.success || response.ok) showToast('Connection successful! Google Sheets is ready.',
+                'success');
                 else showToast('Connection failed: ' + (result.error || 'Unknown'), 'error');
             } catch (e) { showToast('Connection error: ' + e.message, 'error'); }
         }
 
-        // ============ 10. INSPECT MODE ============
+        // ==========================================
+        // 10. INSPECT MODE (FIXED)
+        // ==========================================
         function setInspectLang(lang) {
             currentInspectLang = lang;
-            document.getElementById('btn-lang-en').className = 'px-3 py-1 text-xs rounded ' + (lang === 'en' ? 'bg-blue-100 text-blue-800 font-semibold' : 'bg-gray-100 text-gray-800');
-            document.getElementById('btn-lang-ar').className = 'px-3 py-1 text-xs rounded ' + (lang === 'ar' ? 'bg-blue-100 text-blue-800 font-semibold' : 'bg-gray-100 text-gray-800');
+            document.getElementById('btn-lang-en').className = 'px-3 py-1 text-xs rounded ' + (lang === 'en' ?
+                'bg-blue-100 text-blue-800 font-semibold' : 'bg-gray-100 text-gray-800');
+            document.getElementById('btn-lang-ar').className = 'px-3 py-1 text-xs rounded ' + (lang === 'ar' ?
+                'bg-blue-100 text-blue-800 font-semibold' : 'bg-gray-100 text-gray-800');
             renderInspectMode();
         }
-        function isHiddenByLogic(item) { if (!item.showIf || !item.showIf.vName) return false; return String(inspectAnswers[item.showIf.vName]) !== String(item.showIf.value); }
+
+        function isHiddenByLogic(item) {
+            if (!item.showIf || !item.showIf.vName) return false;
+            return String(inspectAnswers[item.showIf.vName]) !== String(item.showIf.value);
+        }
+
         function evaluateInspectLogic() {
             const page = appState.project.pages[currentInspectPage];
             if (!page) return;
@@ -923,83 +1575,166 @@ function doGet(e) {
                 if (isHidden) delete inspectAnswers[item.vName || item.id];
             });
         }
+
         function validateInspectPage() {
             const page = appState.project.pages[currentInspectPage];
-            if (currentInspectPage === 0 && (!inspectParticipantId || inspectParticipantId.trim() === '')) { alert('Participant ID is required.'); return false; }
+            if (currentInspectPage === 0 && (!inspectParticipantId || inspectParticipantId.trim() === '')) {
+                alert('Participant ID is required.');
+                return false;
+            }
             for (let i = 0; i < page.items.length; i++) {
                 const item = page.items[i];
                 if (isHiddenByLogic(item)) continue;
                 const vName = item.vName || item.id;
                 const val = inspectAnswers[vName];
-                const isAns = val !== undefined && val !== null && val !== '' && !(Array.isArray(val) && val.length === 0);
-                if (item.req && !isAns) { alert('Required: ' + (item['title_' + currentInspectLang] || item.title_en || item.title)); return false; }
+                const isAns = val !== undefined && val !== null && val !== '' && !(Array.isArray(val) && val.length ===
+                0);
+                if (item.req && !isAns) {
+                    alert('Required: ' + (item['title_' + currentInspectLang] || item.title_en || item.title));
+                    return false;
+                }
                 if (item.type === 'number' && isAns) {
                     const num = Number(val);
-                    if (item.min !== undefined && num < item.min) { alert((item['title_' + currentInspectLang] || item.title_en) + ' minimum is ' + item.min); return false; }
-                    if (item.max !== undefined && num > item.max) { alert((item['title_' + currentInspectLang] || item.title_en) + ' maximum is ' + item.max); return false; }
+                    if (item.min !== undefined && num < item.min) { alert((item['title_' + currentInspectLang] || item
+                            .title_en) + ' minimum is ' + item.min);
+                        return false; }
+                    if (item.max !== undefined && num > item.max) { alert((item['title_' + currentInspectLang] || item
+                            .title_en) + ' maximum is ' + item.max);
+                        return false; }
                 }
             }
             return true;
         }
+
         function renderInspectMode() {
             const p = appState.project;
             const lang = currentInspectLang;
             const isAr = lang === 'ar';
+
             document.getElementById('inspect-content').classList.toggle('rtl', isAr);
             document.getElementById('inspect-title').innerText = p[lang].title || 'Untitled Study';
             document.getElementById('inspect-authors').innerText = p[lang].authors || 'Researchers';
             document.getElementById('inspect-welcome').innerText = p[lang].welcome || 'Welcome text...';
+
             const container = document.getElementById('inspect-pages-container');
             container.innerHTML = '';
+
             const page = p.pages[currentInspectPage];
             if (!page) return;
-            let pageHtml = '<h3 class="text-lg font-bold mb-4 text-primary">' + esc(page['title_' + lang] || page.title_en) + '</h3>';
+
+            let pageHtml = '<h3 class="text-lg font-bold mb-4 text-primary">' + esc(page['title_' + lang] || page
+                .title_en) + '</h3>';
+
             if (currentInspectPage === 0) {
                 pageHtml += '<div class="mb-6 bg-blue-50 p-4 rounded border border-blue-200">' +
                     '<label class="block font-bold text-blue-900 mb-2">Participant ID <span class="text-red-500">*</span></label>' +
-                    '<input type="text" id="inspect-participant-id" class="w-full p-3 border rounded font-mono text-lg shadow-inner" value="' + esc(inspectParticipantId) + '" onchange="inspectParticipantId = this.value;" placeholder="Enter ID..."></div>';
+                    '<input type="text" id="inspect-participant-id" class="w-full p-3 border rounded font-mono text-lg shadow-inner" value="' +
+                    esc(inspectParticipantId) +
+                    '" onchange="inspectParticipantId = this.value;" placeholder="Enter ID...">' +
+                    '</div>';
             }
-            page.items.forEach(function(item) {
+
+            page.items.forEach(function(item, idx) {
                 const vName = item.vName || item.id;
                 const title = item['title_' + lang] || item.title_en || item.title;
                 const rq = item.req ? '<span class="text-red-500 font-bold">*</span>' : '';
                 let inputHtml = '';
+
                 if (item.type === 'text') {
-                    inputHtml = '<textarea class="w-full p-3 border rounded shadow-sm text-lg min-h-[100px]" onchange="inspectAnswers[\'' + vName + '\'] = this.value; evaluateInspectLogic();">' + (inspectAnswers[vName] || '') + '</textarea>';
+                    inputHtml = '<textarea class="w-full p-3 border rounded shadow-sm text-lg min-h-[100px]" onchange="inspectAnswers[\'' +
+                        vName + '\'] = this.value; evaluateInspectLogic();">' + (inspectAnswers[vName] || '') +
+                        '</textarea>';
                 } else if (item.type === 'number') {
-                    inputHtml = '<input type="number" class="w-full p-3 border rounded shadow-sm text-lg" onchange="inspectAnswers[\'' + vName + '\'] = Number(this.value); evaluateInspectLogic();" value="' + (inspectAnswers[vName] || '') + '">' +
-                        (item.min !== undefined || item.max !== undefined ? '<p class="text-xs text-gray-500 mt-1">Range: ' + (item.min !== undefined ? item.min : '∞') + ' - ' + (item.max !== undefined ? item.max : '∞') + '</p>' : '');
+                    inputHtml = '<input type="number" class="w-full p-3 border rounded shadow-sm text-lg" onchange="inspectAnswers[\'' +
+                        vName + '\'] = Number(this.value); evaluateInspectLogic();" value="' + (inspectAnswers[
+                        vName] || '') + '">' +
+                        (item.min !== undefined || item.max !== undefined ? '<p class="text-xs text-gray-500 mt-1">Range: ' +
+                            (item.min !== undefined ? item.min : '∞') + ' - ' + (item.max !== undefined ? item.max :
+                                '∞') + '</p>' : '');
                 } else if (item.type === 'binary' || item.type === 'mcq') {
                     inputHtml = '<div class="space-y-2">' + (item.options || []).map(function(opt) {
-                        return '<label class="flex items-center gap-3 p-3 border rounded cursor-pointer hover:bg-gray-50 transition"><input type="radio" name="' + item.id + '" value="' + opt.value + '" onchange="inspectAnswers[\'' + vName + '\'] = Number(this.value); evaluateInspectLogic();" ' + (inspectAnswers[vName] === opt.value ? 'checked' : '') + ' class="w-5 h-5"><span>' + esc(opt['label_' + lang] || opt.label_en || opt.text || opt.label) + '</span></label>';
+                        return '<label class="flex items-center gap-3 p-3 border rounded cursor-pointer hover:bg-gray-50 transition">' +
+                            '<input type="radio" name="' + item.id + '" value="' + opt.value +
+                            '" onchange="inspectAnswers[\'' + vName +
+                            '\'] = Number(this.value); evaluateInspectLogic();" ' + (inspectAnswers[
+                                vName] === opt.value ? 'checked' : '') +
+                            ' class="w-5 h-5">' +
+                            '<span>' + esc(opt['label_' + lang] || opt.label_en || opt.text || opt
+                            .label) + '</span>' +
+                            '</label>';
                     }).join('') + '</div>';
                 } else if (item.type === 'checkbox') {
                     inputHtml = '<div class="space-y-2">' + (item.options || []).map(function(opt) {
-                        const arr = Array.isArray(inspectAnswers[vName]) ? inspectAnswers[vName] : [];
-                        return '<label class="flex items-center gap-3 p-3 border rounded cursor-pointer hover:bg-gray-50 transition"><input type="checkbox" value="' + opt.value + '" onchange="var arr=inspectAnswers[\'' + vName + '\']||[]; if(this.checked){ if(!arr.includes(Number(this.value))) arr.push(Number(this.value)); } else { arr=arr.filter(function(x){return x!==Number(this.value)}.bind(this)); } inspectAnswers[\'' + vName + '\']=arr; evaluateInspectLogic();" ' + (arr.includes(opt.value) ? 'checked' : '') + ' class="w-5 h-5"><span>' + esc(opt['label_' + lang] || opt.label_en || opt.text || opt.label) + '</span></label>';
+                        const arr = Array.isArray(inspectAnswers[vName]) ? inspectAnswers[vName] :
+                        [];
+                        return '<label class="flex items-center gap-3 p-3 border rounded cursor-pointer hover:bg-gray-50 transition">' +
+                            '<input type="checkbox" value="' + opt.value +
+                            '" onchange="var arr=inspectAnswers[\'' + vName +
+                            '\']||[]; if(this.checked){ if(!arr.includes(Number(this.value))) arr.push(Number(this.value)); } else { arr=arr.filter(function(x){return x!==Number(this.value)}.bind(this)); } inspectAnswers[\'' +
+                            vName + '\']=arr; evaluateInspectLogic();" ' + (arr.includes(opt.value) ?
+                                'checked' : '') + ' class="w-5 h-5">' +
+                            '<span>' + esc(opt['label_' + lang] || opt.label_en || opt.text || opt
+                            .label) + '</span>' +
+                            '</label>';
                     }).join('') + '</div>';
                 } else if (item.type === 'likert') {
-                    inputHtml = '<div class="flex flex-wrap justify-between gap-2 bg-gray-50 p-4 rounded border">' + (item.options || []).map(function(opt) {
-                        return '<label class="flex flex-col items-center flex-1 text-center cursor-pointer min-w-[80px]"><input type="radio" name="' + item.id + '" value="' + opt.value + '" onchange="inspectAnswers[\'' + vName + '\'] = Number(this.value); evaluateInspectLogic();" ' + (inspectAnswers[vName] === opt.value ? 'checked' : '') + ' class="w-6 h-6 mb-2"><span class="text-xs font-semibold">' + esc(opt['label_' + lang] || opt.label_en || opt.text || opt.label) + '</span></label>';
-                    }).join('') + '</div>';
+                    inputHtml = '<div class="flex flex-wrap justify-between gap-2 bg-gray-50 p-4 rounded border">' +
+                        (item.options || []).map(function(opt) {
+                            return '<label class="flex flex-col items-center flex-1 text-center cursor-pointer min-w-[80px]">' +
+                                '<input type="radio" name="' + item.id + '" value="' + opt.value +
+                                '" onchange="inspectAnswers[\'' + vName +
+                                '\'] = Number(this.value); evaluateInspectLogic();" ' + (
+                                    inspectAnswers[vName] === opt.value ? 'checked' : '') +
+                                ' class="w-6 h-6 mb-2">' +
+                                '<span class="text-xs font-semibold">' + esc(opt['label_' + lang] ||
+                                    opt.label_en || opt.text || opt.label) + '</span>' +
+                                '</label>';
+                        }).join('') + '</div>';
                 } else if (item.type === 'scale10') {
-                    inputHtml = '<div class="flex flex-wrap justify-between gap-1 bg-gray-50 p-4 rounded border">' + [1,2,3,4,5,6,7,8,9,10].map(function(n) {
-                        return '<label class="flex flex-col items-center flex-1 cursor-pointer min-w-[45px]"><input type="radio" name="' + item.id + '" value="' + n + '" onchange="inspectAnswers[\'' + vName + '\'] = Number(this.value); evaluateInspectLogic();" ' + (inspectAnswers[vName] === n ? 'checked' : '') + ' class="w-6 h-6 mb-2"><span class="text-base font-bold text-gray-700">' + n + '</span></label>';
-                    }).join('') + '</div>';
+                    inputHtml = '<div class="flex flex-wrap justify-between gap-1 bg-gray-50 p-4 rounded border">' +
+                        [1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map(function(n) {
+                            return '<label class="flex flex-col items-center flex-1 cursor-pointer min-w-[45px]">' +
+                                '<input type="radio" name="' + item.id + '" value="' + n +
+                                '" onchange="inspectAnswers[\'' + vName +
+                                '\'] = Number(this.value); evaluateInspectLogic();" ' + (
+                                    inspectAnswers[vName] === n ? 'checked' : '') +
+                                ' class="w-6 h-6 mb-2">' +
+                                '<span class="text-base font-bold text-gray-700">' + n +
+                                '</span>' +
+                                '</label>';
+                        }).join('') + '</div>';
                 } else if (item.type === 'signature') {
-                    inputHtml = '<div class="sig-canvas p-2 bg-gray-50"><canvas id="sig-' + item.id + '" width="400" height="150" class="w-full bg-white" style="max-width:100%;"></canvas><div class="flex justify-end mt-2"><button type="button" onclick="clearSignature(\'' + item.id + '\',\'' + vName + '\')" class="text-sm font-bold bg-red-100 text-red-600 px-4 py-2 rounded">Clear Signature</button></div></div>';
+                    inputHtml = '<div class="sig-canvas p-2 bg-gray-50">' +
+                        '<canvas id="sig-' + item.id + '" width="400" height="150" class="w-full bg-white" style="max-width:100%;"></canvas>' +
+                        '<div class="flex justify-end mt-2"><button type="button" onclick="clearSignature(\'' +
+                        item.id + '\',\'' + vName +
+                        '\')" class="text-sm font-bold bg-red-100 text-red-600 px-4 py-2 rounded">Clear Signature</button></div>' +
+                        '</div>';
                 } else if (item.type === 'camera') {
-                    inputHtml = '<div class="p-6 border-2 border-dashed border-gray-400 rounded bg-gray-50 text-center"><input type="file" accept="image/*" capture="environment" onchange="var f=this.files[0]; var r=new FileReader(); r.onload=function(e){inspectAnswers[\'' + vName + '\'] = e.target.result;}; if(f) r.readAsDataURL(f);" class="text-base w-full"></div>';
+                    inputHtml = '<div class="p-6 border-2 border-dashed border-gray-400 rounded bg-gray-50 text-center">' +
+                        '<input type="file" accept="image/*" capture="environment" onchange="var f=this.files[0]; var r=new FileReader(); r.onload=function(e){inspectAnswers[\'' +
+                        vName +
+                        '\'] = e.target.result;}; if(f) r.readAsDataURL(f);" class="text-base w-full">' +
+                        '</div>';
                 }
-                pageHtml += '<div id="inspect-item-' + item.id + '" class="mb-6 ' + (isHiddenByLogic(item) ? 'hidden' : '') + '"><label class="block font-bold text-lg mb-2 text-gray-800">' + esc(title) + ' ' + rq + '</label>' + inputHtml + '</div>';
+
+                pageHtml += '<div id="inspect-item-' + item.id + '" class="mb-6 ' + (isHiddenByLogic(item) ?
+                    'hidden' : '') + '">' +
+                    '<label class="block font-bold text-lg mb-2 text-gray-800">' + esc(title) + ' ' + rq +
+                    '</label>' + inputHtml +
+                    '</div>';
             });
+
             container.innerHTML = pageHtml;
+
             document.getElementById('btn-inspect-prev').classList.toggle('hidden', currentInspectPage === 0);
             const isLastPage = currentInspectPage === p.pages.length - 1;
             document.getElementById('btn-inspect-next').classList.toggle('hidden', isLastPage);
             document.getElementById('btn-inspect-submit').classList.toggle('hidden', !isLastPage);
+
             initSignatureCanvases();
         }
+
         function initSignatureCanvases() {
             const page = appState.project.pages[currentInspectPage];
             if (!page) return;
@@ -1008,50 +1743,655 @@ function doGet(e) {
                 if (!canvas) return;
                 const ctx = canvas.getContext('2d');
                 let drawing = false;
-                function getPos(e) { const rect = canvas.getBoundingClientRect(); return { x: (e.touches ? e.touches[0].clientX : e.clientX) - rect.left, y: (e.touches ? e.touches[0].clientY : e.clientY) - rect.top }; }
-                function startDraw(e) { drawing = true; const pos = getPos(e); ctx.beginPath(); ctx.moveTo(pos.x, pos.y); e.preventDefault(); }
-                function draw(e) { if (!drawing) return; const pos = getPos(e); ctx.lineTo(pos.x, pos.y); ctx.stroke(); e.preventDefault(); }
-                function endDraw(e) { drawing = false; inspectAnswers[item.vName || item.id] = canvas.toDataURL(); e.preventDefault(); }
-                canvas.addEventListener('mousedown', startDraw); canvas.addEventListener('mousemove', draw); canvas.addEventListener('mouseup', endDraw); canvas.addEventListener('mouseout', endDraw);
-                canvas.addEventListener('touchstart', startDraw); canvas.addEventListener('touchmove', draw); canvas.addEventListener('touchend', endDraw);
+
+                function getPos(e) {
+                    const rect = canvas.getBoundingClientRect();
+                    return {
+                        x: (e.touches ? e.touches[0].clientX : e.clientX) - rect.left,
+                        y: (e.touches ? e.touches[0].clientY : e.clientY) - rect.top
+                    };
+                }
+
+                function startDraw(e) {
+                    drawing = true;
+                    const pos = getPos(e);
+                    ctx.beginPath();
+                    ctx.moveTo(pos.x, pos.y);
+                    e.preventDefault();
+                }
+
+                function draw(e) {
+                    if (!drawing) return;
+                    const pos = getPos(e);
+                    ctx.lineTo(pos.x, pos.y);
+                    ctx.stroke();
+                    e.preventDefault();
+                }
+
+                function endDraw(e) {
+                    drawing = false;
+                    const vName = item.vName || item.id;
+                    inspectAnswers[vName] = canvas.toDataURL();
+                    e.preventDefault();
+                }
+                canvas.addEventListener('mousedown', startDraw);
+                canvas.addEventListener('mousemove', draw);
+                canvas.addEventListener('mouseup', endDraw);
+                canvas.addEventListener('mouseout', endDraw);
+                canvas.addEventListener('touchstart', startDraw);
+                canvas.addEventListener('touchmove', draw);
+                canvas.addEventListener('touchend', endDraw);
             });
         }
+
         window.clearSignature = function(id, vName) {
             const canvas = document.getElementById('sig-' + id);
-            if (canvas) { canvas.getContext('2d').clearRect(0, 0, canvas.width, canvas.height); delete inspectAnswers[vName]; }
+            if (canvas) {
+                canvas.getContext('2d').clearRect(0, 0, canvas.width, canvas.height);
+                delete inspectAnswers[vName];
+            }
         };
-        function inspectPrev() { if (currentInspectPage > 0) { currentInspectPage--; renderInspectMode(); window.scrollTo(0, 0); } }
-        function inspectNext() { if (validateInspectPage() && currentInspectPage < appState.project.pages.length - 1) { currentInspectPage++; renderInspectMode(); window.scrollTo(0, 0); } }
+
+        function inspectPrev() { if (currentInspectPage > 0) { currentInspectPage--;
+                renderInspectMode();
+                window.scrollTo(0, 0); } }
+
+        function inspectNext() { if (validateInspectPage() && currentInspectPage < appState.project.pages.length - 1) {
+                currentInspectPage++;
+                renderInspectMode();
+                window.scrollTo(0, 0); } }
+
         async function handleFinalSubmit() {
             if (!validateInspectPage()) return;
             const duration = Math.floor((Date.now() - inspectStartTime) / 1000);
             inspectAnswers._duration_sec = duration;
+
             const record = {
-                id: crypto.randomUUID ? crypto.randomUUID() : 'rec_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9),
-                participantId: inspectParticipantId, projectId: appState.project.id, timestamp: Date.now(), answers: inspectAnswers
+                id: crypto.randomUUID ? crypto.randomUUID() : 'rec_' + Date.now() + '_' + Math.random().toString(36)
+                    .substr(2, 9),
+                participantId: inspectParticipantId,
+                projectId: appState.project.id,
+                timestamp: Date.now(),
+                answers: inspectAnswers
             };
+
             await syncEngine.save(record);
+
             let scores = {};
             appState.project.pages.forEach(function(page) {
                 page.items.forEach(function(item) {
-                    if (item.scale && item.scale !== 'Unassigned' && item.scale !== 'Demographics' && item.scale !== 'Consent' && item.scale !== 'Documentation' && ['number','likert','scale10'].includes(item.type)) {
+                    if (item.scale && item.scale !== 'Unassigned' && item.scale !== 'Demographics' &&
+                        item.scale !== 'Consent' && item.scale !== 'Documentation' &&
+                        ['number', 'likert', 'scale10'].includes(item.type)) {
                         if (!scores[item.scale]) scores[item.scale] = 0;
                         const val = inspectAnswers[item.vName || item.id];
                         if (val !== undefined && !isNaN(val)) scores[item.scale] += Number(val);
                     }
                 });
             });
+
             let msg = 'Data saved successfully!';
-            if (Object.keys(scores).length > 0) { msg += '\n\nScale Scores:'; for (const scale in scores) msg += '\n- ' + scale + ': ' + scores[scale]; }
+            if (Object.keys(scores).length > 0) {
+                msg += '\n\nScale Scores:';
+                for (const scale in scores) msg += '\n- ' + scale + ': ' + scores[scale];
+            }
             alert(msg);
-            inspectAnswers = {}; inspectParticipantId = ''; currentInspectPage = 0; inspectStartTime = Date.now();
+
+            inspectAnswers = {};
+            inspectParticipantId = '';
+            currentInspectPage = 0;
+            inspectStartTime = Date.now();
             renderInspectMode();
         }
 
-        // ============ 11. MASTER HUB ============
+        // ==========================================
+        // 11. MASTER DATA HUB (FIXED)
+        // ==========================================
         async function renderMasterHubTable() {
             const tbody = document.getElementById('data-table-body');
             const records = await db.submissions.where({ projectId: appState.project.id }).reverse().sortBy('timestamp');
             tbody.innerHTML = '';
+
             if (records.length === 0) {
-                tbody.innerHTML = '<tr
+                tbody.innerHTML =
+                    '<tr><td colspan="6" class="px-4 py-8 text-center text-gray-500">No participants recorded yet.</td></tr>';
+            } else {
+                records.forEach(function(rec) {
+                    const status = rec._syncStatus || 'pending';
+                    const statusClass = status === 'synced' ? 'sync-synced' : status === 'failed' ?
+                        'sync-failed' : status === 'conflict' ? 'sync-conflict' : 'sync-pending';
+                    const statusDot = status === 'synced' ? 'sync-dot-synced' : status === 'failed' ?
+                        'sync-dot-failed' : status === 'conflict' ? 'sync-dot-conflict' :
+                        'sync-dot-pending';
+                    const statusLabel = status === 'synced' ? 'Synced' : status === 'failed' ?
+                        'Failed' : status === 'conflict' ? 'Conflict' : 'Pending';
+
+                    tbody.innerHTML += '<tr class="' + statusClass + '">' +
+                        '<td class="px-4 py-3 text-sm"><span class="sync-indicator ' + statusDot +
+                        '"></span><span class="font-bold text-xs uppercase">' + statusLabel +
+                        '</span></td>' +
+                        '<td class="px-4 py-3 text-sm font-bold text-blue-700">' + esc(rec
+                            .participantId) + '</td>' +
+                        '<td class="px-4 py-3 text-sm font-mono text-gray-400">' + rec.id.split('-')[0] +
+                        '</td>' +
+                        '<td class="px-4 py-3 text-sm">' + new Date(rec.timestamp).toLocaleString() +
+                        '</td>' +
+                        '<td class="px-4 py-3 text-sm">' + (rec.answers._duration_sec || 'N/A') +
+                        's</td>' +
+                        '<td class="px-4 py-3 text-sm">' +
+                        (status === 'failed' ? '<button onclick="retrySync(\'' + rec.id +
+                            '\')" class="text-blue-600 font-bold text-xs bg-blue-100 px-2 py-1 rounded hover:bg-blue-200 mr-2">Retry</button>' :
+                            '') +
+                        '<button onclick="viewRecord(\'' + rec.id +
+                        '\')" class="text-gray-600 hover:text-gray-800 text-xs mr-2">View</button>' +
+                        '<button onclick="deleteRecord(\'' + rec.id +
+                        '\')" class="text-red-500 hover:text-red-700 text-xs">Delete</button>' +
+                        '</td>' +
+                        '</tr>';
+                });
+            }
+            syncEngine.updateUI();
+        }
+
+        async function retrySync(id) {
+            const rec = await db.submissions.get(id);
+            if (rec) {
+                rec._syncStatus = 'pending';
+                rec._syncAttempts = 0;
+                rec._syncError = null;
+                await db.submissions.put(rec);
+                await db.syncQueue.put({ id: rec.id, status: 'pending', attempts: 0, lastAttempt: null,
+                    error: null, timestamp: rec.timestamp });
+                showToast('Queued for retry.', 'info');
+                syncEngine.processQueue();
+                renderMasterHubTable();
+            }
+        }
+
+        async function viewRecord(id) {
+            const rec = await db.submissions.get(id);
+            if (rec) alert(JSON.stringify(rec, null, 2));
+        }
+
+        async function deleteRecord(id) {
+            if (confirm('Permanently delete this record?')) {
+                await db.submissions.delete(id);
+                await db.syncQueue.delete(id);
+                renderMasterHubTable();
+                syncEngine.updateUI();
+            }
+        }
+
+        async function pullFromCloud() {
+            showToast('Pulling from cloud...', 'info');
+            try {
+                await syncEngine.pullFromCloud();
+                renderMasterHubTable();
+            } catch (e) {}
+        }
+
+        // ==========================================
+        // 12. ANALYTICS
+        // ==========================================
+        async function openAnalytics() {
+            charts.forEach(function(c) { if (c) c.destroy(); });
+            charts = [];
+
+            const records = await db.submissions.where({ projectId: appState.project.id }).toArray();
+            const container = document.getElementById('analytics-content');
+            container.innerHTML = '';
+
+            if (records.length === 0) {
+                container.innerHTML = '<p class="text-gray-500 text-center">No data to analyze yet.</p>';
+            } else {
+                let targetItems = [];
+                appState.project.pages.forEach(function(page) {
+                    page.items.forEach(function(item) {
+                        if (['likert', 'scale10', 'binary', 'mcq'].includes(item.type)) targetItems
+                            .push(item);
+                    });
+                });
+
+                if (targetItems.length === 0) {
+                    container.innerHTML =
+                        '<p class="text-gray-500 text-center">No analyzable questions found (Likert, Scale 1-10, Binary, MCQ).</p>';
+                } else {
+                    container.innerHTML = '<div class="grid grid-cols-1 md:grid-cols-2 gap-6">';
+                    const grid = container.firstChild;
+
+                    targetItems.forEach(function(item) {
+                        let counts = {};
+                        if (item.type === 'scale10') {
+                            for (let n = 1; n <= 10; n++) counts[n] = 0;
+                        } else if (item.options) {
+                            item.options.forEach(function(opt) { counts[opt.label_en] = 0; });
+                        }
+
+                        records.forEach(function(rec) {
+                            const val = rec.answers[item.vName || item.id];
+                            if (item.type === 'scale10') {
+                                if (val >= 1 && val <= 10) counts[val]++;
+                            } else if (item.options) {
+                                const opt = item.options.find(function(o) { return o.value === val; });
+                                if (opt) counts[opt.label_en]++;
+                            }
+                        });
+
+                        const wrapper = document.createElement('div');
+                        wrapper.className = 'bg-white p-4 border rounded shadow-sm';
+                        wrapper.innerHTML = '<h4 class="font-bold text-sm mb-4 text-center truncate">' +
+                            esc(item.title_en || item.title) + '</h4><canvas id="chart-' + item.id +
+                            '"></canvas>';
+                        grid.appendChild(wrapper);
+
+                        const ctx = document.getElementById('chart-' + item.id).getContext('2d');
+                        charts.push(new Chart(ctx, {
+                            type: 'bar',
+                            data: {
+                                labels: Object.keys(counts),
+                                datasets: [{
+                                    label: 'Frequency (N=' + records.length + ')',
+                                    data: Object.values(counts),
+                                    backgroundColor: appState.project.theme + '80',
+                                    borderColor: appState.project.theme,
+                                    borderWidth: 1
+                                }]
+                            },
+                            options: {
+                                responsive: true,
+                                scales: { y: { beginAtZero: true, ticks: { stepSize: 1 } } }
+                            }
+                        }));
+                    });
+                }
+            }
+            document.getElementById('modal-analytics').classList.remove('hidden');
+        }
+
+        // ==========================================
+        // 13. EXPORT FUNCTIONS
+        // ==========================================
+        async function exportSPSS() {
+            const records = await db.submissions.where({ projectId: appState.project.id }).toArray();
+            if (records.length === 0) return showToast('No data to export!', 'error');
+
+            const engine = new SPSSDataEngine();
+            let allRows = [];
+            records.forEach(function(rec) {
+                const row = engine.prepareDataForExport(rec.answers, rec.answers._duration_sec, appState.project,
+                    rec.participantId);
+                row._syncStatus = rec._syncStatus || 'pending';
+                row._checksum = rec._checksum || '';
+                allRows.push(row);
+            });
+
+            if (allRows.length === 0) return showToast('No data to export!', 'error');
+
+            const headers = Object.keys(allRows[0]);
+            let csv = headers.join(',') + '\n';
+            allRows.forEach(function(row) {
+                const line = headers.map(function(h) {
+                    let val = row[h];
+                    if (val === null || val === undefined) return '';
+                    val = String(val).replace(/"/g, '""');
+                    return '"' + val + '"';
+                });
+                csv += line.join(',') + '\n';
+            });
+
+            const syntax = engine.generateSPSSSyntax(appState.project);
+            const t = Date.now();
+            const safeName = (appState.project.name || 'Project').replace(/\s/g, '_');
+            downloadFile(csv, 'SPSS_Data_' + safeName + '_' + t + '.csv', 'text/csv');
+            setTimeout(function() {
+                downloadFile(syntax, 'SPSS_Setup_' + safeName + '_' + t + '.sps', 'text/plain');
+            }, 500);
+            showToast('SPSS files exported!', 'success');
+        }
+
+        async function backupLocal() {
+            const records = await db.submissions.where({ projectId: appState.project.id }).toArray();
+            if (records.length === 0) return showToast('No data to backup!', 'error');
+            const payload = {
+                metadata: {
+                    projectName: appState.project.name,
+                    projectId: appState.project.id,
+                    exportedAt: new Date().toISOString(),
+                    totalRecords: records.length,
+                    version: '18.0'
+                },
+                data: records
+            };
+            downloadFile(JSON.stringify(payload, null, 2), 'Backup_' + appState.project.name.replace(/\s/g, '_') +
+                '.json', 'application/json');
+            showToast('Backup exported!', 'success');
+        }
+
+        async function importOfflineData(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+            const reader = new FileReader();
+            reader.onload = async function(e) {
+                try {
+                    const json = JSON.parse(e.target.result);
+                    const data = json.data || json;
+                    if (Array.isArray(data)) {
+                        let imported = 0;
+                        for (const rec of data) {
+                            if (!rec._syncStatus) rec._syncStatus = 'pending';
+                            if (!rec._checksum) rec._checksum = DataValidator.generateChecksum(rec);
+                            await db.submissions.put(rec);
+                            await db.syncQueue.put({
+                                id: rec.id,
+                                status: rec._syncStatus === 'synced' ? 'synced' : 'pending',
+                                attempts: 0,
+                                lastAttempt: null,
+                                error: null,
+                                timestamp: rec.timestamp
+                            });
+                            imported++;
+                        }
+                        showToast(imported + ' records imported!', 'success');
+                        renderMasterHubTable();
+                        syncEngine.updateUI();
+                    } else showToast('Invalid data file.', 'error');
+                } catch (err) { showToast('Error parsing file.', 'error'); }
+            };
+            reader.readAsText(file);
+        }
+
+                // ==========================================
+        // 14. EXPORT STANDALONE APPS (FIXED: CDN-PROOF)
+        // ==========================================
+        function exportOfflineApp() {
+            saveProject();
+            const stateStr = JSON.stringify(appState).replace(/</g, '\\u003c');
+            const standalone = buildStandaloneApp(stateStr, false);
+            downloadFile(standalone, appState.project.name.replace(/\s/g, '_') + '_Offline.html', 'text/html');
+            showToast('Offline app exported!', 'success');
+        }
+
+        function exportOnlineApp() {
+            saveProject();
+            const stateStr = JSON.stringify(appState).replace(/</g, '\\u003c');
+            const standalone = buildStandaloneApp(stateStr, true);
+            downloadFile(standalone, appState.project.name.replace(/\s/g, '_') + '_Online.html', 'text/html');
+            showToast('Online app exported!', 'success');
+        }
+
+        function buildStandaloneApp(stateStr, isOnline) {
+            return `<!DOCTYPE html>
+        <html lang="en" dir="auto">
+        <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>${esc(appState.project.name)} - Collector</title>
+        <script src="https://cdn.tailwindcss.com"><\/script>
+        <script src="https://unpkg.com/dexie/dist/dexie.js"><\/script>
+        <style>
+        :root{--theme-color:${appState.project.theme}}
+        .btn-primary{background-color:var(--theme-color);color:white}
+        .sig-canvas{border:2px dashed #9ca3af;border-radius:8px;background:white;cursor:crosshair;touch-action:none}
+        .toast{position:fixed;bottom:20px;right:20px;padding:12px 20px;border-radius:8px;color:white;font-weight:bold;z-index:100;transition:all .3s;transform:translateY(100px);opacity:0}
+        .toast.show{transform:translateY(0);opacity:1}
+        .sync-indicator{width:10px;height:10px;border-radius:50%;display:inline-block;margin-right:6px}
+        .sync-dot-pending{background:#f59e0b;animation:pulse 1.5s infinite}
+        .sync-dot-synced{background:#10b981}
+        .sync-dot-failed{background:#ef4444}
+        @keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
+        /* Fallback layout so the app still works if Tailwind CDN fails */
+        .hidden{display:none!important}
+        body{margin:0;font-family:'Segoe UI',Tahoma,sans-serif;background:#f9fafb;color:#1f2937}
+        .max-w-3xl{max-width:48rem;margin:0 auto}
+        .bg-white{background:#fff}.p-2{padding:.5rem}.p-4{padding:1rem}.p-6{padding:1.5rem}.p-8{padding:2rem}
+        .rounded,.rounded-lg{border-radius:.5rem}.shadow{box-shadow:0 1px 3px rgba(0,0,0,.15)}
+        .mb-3{margin-bottom:.75rem}.mb-4{margin-bottom:1rem}.mb-6{margin-bottom:1.5rem}.mt-2{margin-top:.5rem}
+        .flex{display:flex}.justify-between{justify-content:space-between}.items-center{align-items:center}
+        .gap-2{gap:.5rem}.flex-1{flex:1}.justify-end{justify-content:flex-end}
+        .space-y-2>*+*{margin-top:.5rem}.space-y-6>*+*{margin-top:1.5rem}
+        button{cursor:pointer;border:0;border-radius:.375rem;padding:.5rem 1rem;font-weight:700}
+        input,textarea{border:1px solid #d1d5db;border-radius:.375rem;padding:.5rem;width:100%;box-sizing:border-box}
+        label{margin-bottom:.5rem}
+        .text-red-500{color:#ef4444}.text-sm{font-size:.875rem}.text-xs{font-size:.75rem}
+        .font-bold{font-weight:700}.text-center{text-align:center}
+        <\/style>
+        <\/head>
+        <body class="bg-gray-50 font-sans p-4" style="font-family:${appState.project.font}">
+        <div class="max-w-3xl mx-auto">
+        <div class="bg-white p-4 rounded-lg shadow mb-4 flex justify-between items-center border-t-4" style="border-color:var(--theme-color)">
+        <h1 class="text-xl font-bold">${esc(appState.project.name)}</h1>
+        <div class="flex gap-2">
+        <button onclick="goTo('intro')" class="btn-primary px-3 py-1.5 rounded text-sm font-bold">Collect</button>
+        <button onclick="checkPin()" class="bg-purple-600 text-white px-3 py-1.5 rounded text-sm font-bold">Dashboard</button>
+        <\/div>
+        <\/div>
+        <div id="conn-bar" class="bg-white p-2 rounded shadow mb-3 flex justify-between items-center text-xs font-bold ${isOnline ? '' : 'hidden'}">
+        <div class="flex items-center gap-2"><span id="conn-dot" class="sync-indicator sync-dot-pending"></span><span id="conn-text">Checking...</span><\/div>
+        <div id="queue-info" class="text-gray-500 hidden"><span id="queue-count">0</span> pending<\/div>
+        <\/div>
+        <div id="v-intro" class="bg-white p-8 rounded-lg shadow text-center hidden">
+        <div class="flex justify-end mb-4"><button onclick="togL()" class="border px-3 py-1 rounded text-sm font-bold bg-gray-100">EN / AR<\/button><\/div>
+        <h1 id="in-title" class="text-2xl font-bold mb-2"><\/h1>
+        <h3 id="in-authors" class="text-md text-gray-600 mb-6"><\/h3>
+        <p id="in-welcome" class="text-gray-700 mb-8 whitespace-pre-wrap"><\/p>
+        <button onclick="goTo('int');startInt();" class="btn-primary px-8 py-3 rounded-full font-bold shadow-lg text-lg">Start<\/button>
+        <\/div>
+        <div id="v-int" class="bg-white p-6 rounded-lg shadow hidden">
+        <div class="flex justify-between items-center mb-4 border-b pb-4">
+        <div><h2 id="s-title" class="text-xl font-bold"><\/h2><p id="s-prog" class="text-sm text-gray-500"><\/p><\/div>
+        <button onclick="togL()" class="border px-3 py-1 rounded text-sm font-bold bg-gray-100">EN / AR<\/button>
+        <\/div>
+        <div id="id-con" class="mb-4 bg-blue-50 p-4 rounded border border-blue-200">
+        <label class="block font-bold text-blue-900 mb-1">Participant ID <span class="text-red-500">*<\/span><\/label>
+        <input type="text" id="p-id" class="w-full p-2 border rounded font-mono" onkeyup="pid=this.value" placeholder="Enter ID...">
+        <\/div>
+        <div id="q-con" class="space-y-6 mb-6"><\/div>
+        <div class="flex justify-between border-t pt-4">
+        <button id="b-prv" onclick="prv()" class="px-4 py-2 bg-gray-300 rounded font-bold hidden">Previous<\/button>
+        <div class="flex-1"><\/div>
+        <button id="b-nxt" onclick="nxt()" class="btn-primary px-6 py-2 rounded font-bold shadow">Next<\/button>
+        <button id="b-sav" onclick="sav()" class="bg-green-600 text-white px-6 py-2 rounded font-bold shadow hidden">Save<\/button>
+        <\/div>
+        <\/div>
+        <div id="v-dash" class="bg-white p-6 rounded-lg shadow hidden">
+        <div class="flex justify-between items-center mb-4 border-b pb-4">
+        <div><h2 class="text-xl font-bold">Dashboard<\/h2><p class="text-sm text-gray-500">Total: <span id="d-count">0<\/span> | Synced: <span id="d-synced">0<\/span> | Pending: <span id="d-pending">0<\/span><\/p><\/div>
+        <div class="flex gap-2">
+        ${isOnline ? '<button onclick="syncAll()" class="bg-green-600 text-white px-3 py-1.5 rounded text-sm font-bold">Sync All<\/button>' : ''}
+        <button onclick="exp()" class="bg-purple-600 text-white px-3 py-1.5 rounded text-sm font-bold">Download<\/button>
+        <\/div>
+        <\/div>
+        <div id="d-list" class="space-y-2 max-h-[60vh] overflow-y-auto"><\/div>
+        <\/div>
+        <\/div>
+        <script>
+        var proj = ${stateStr}.project;
+        var isOnlineMode = ${isOnline ? 'true' : 'false'};
+
+        /* Storage layer: Dexie if the CDN loaded, otherwise localStorage fallback (never crashes) */
+        var db = null;
+        try { if (window.Dexie) { db = new Dexie("CollectorDB"); db.version(1).stores({submissions:'id',syncQueue:'id'}); } } catch(e) { db = null; }
+        function _lsGet(k){ try { return JSON.parse(localStorage.getItem(k) || '[]'); } catch(e) { return []; } }
+        function _lsSet(k,v){ try { localStorage.setItem(k, JSON.stringify(v)); } catch(e) {} }
+        function subPut(r){ if(db) return db.submissions.put(r); var a=_lsGet('c_sub').filter(function(x){return x.id!==r.id}); a.push(r); _lsSet('c_sub',a); return Promise.resolve(); }
+        function subGet(id){ if(db) return db.submissions.get(id); return Promise.resolve(_lsGet('c_sub').find(function(x){return x.id===id})); }
+        function subDel(id){ if(db) return db.submissions.delete(id); _lsSet('c_sub',_lsGet('c_sub').filter(function(x){return x.id!==id})); return Promise.resolve(); }
+        function subAll(){ if(db) return db.submissions.toArray(); return Promise.resolve(_lsGet('c_sub')); }
+        function qPut(r){ if(db) return db.syncQueue.put(r); var a=_lsGet('c_queue').filter(function(x){return x.id!==r.id}); a.push(r); _lsSet('c_queue',a); return Promise.resolve(); }
+        function qDel(id){ if(db) return db.syncQueue.delete(id); _lsSet('c_queue',_lsGet('c_queue').filter(function(x){return x.id!==id})); return Promise.resolve(); }
+        function qAll(){ if(db) return db.syncQueue.toArray(); return Promise.resolve(_lsGet('c_queue')); }
+
+        var pg = 0, ans = {}, lang = 'en', pid = '', st = 0;
+        function esc(s){return s==null?'':String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')}
+        function toast(msg,type){var t=document.createElement('div');t.className='toast toast-'+type;t.textContent=msg;document.body.appendChild(t);setTimeout(function(){t.classList.add('show')},10);setTimeout(function(){t.classList.remove('show');setTimeout(function(){t.remove()},300)},3000)}
+        function updConn(){var d=document.getElementById('conn-dot'),x=document.getElementById('conn-text');if(navigator.onLine){d.className='sync-indicator sync-dot-synced';x.textContent='Online'}else{d.className='sync-indicator sync-dot-failed';x.textContent='Offline'}}
+        window.addEventListener('online',function(){updConn();if(isOnlineMode)processQueue()});window.addEventListener('offline',updConn);
+        async function processQueue(){if(!navigator.onLine||!isOnlineMode)return;var pending=await qAll();if(pending.length===0)return;toast('Syncing '+pending.length+'...','info');for(var rec of pending){try{var r=await fetch(proj.googleUrl,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(rec)});var j=await r.json();if(j.success||r.ok){rec._syncStatus='synced';await subPut(rec);await qDel(rec.id)}}catch(e){}}updDash();}
+        function goTo(id){['intro','int','dash'].forEach(function(x){document.getElementById('v-'+x).classList.add('hidden')});document.getElementById('v-'+id).classList.remove('hidden');if(id==='intro'){var l=proj[lang];document.getElementById('in-title').textContent=l.title||'';document.getElementById('in-authors').textContent=l.authors||'';document.getElementById('in-welcome').textContent=l.welcome||''}}
+        function startInt(){pg=0;st=Date.now();ren()}
+        function togL(){lang=lang==='en'?'ar':'en';document.documentElement.dir=lang==='ar'?'rtl':'ltr';if(!document.getElementById('v-intro').classList.contains('hidden'))goTo('intro');else ren()}
+        function isH(q){if(!q.showIf||!q.showIf.vName)return false;return String(ans[q.showIf.vName])!==String(q.showIf.value)}
+        function evL(){proj.pages[pg].items.forEach(function(q){var el=document.getElementById('qi-'+q.id);if(el){el.classList.toggle('hidden',isH(q));if(isH(q))delete ans[q.vName||q.id]}})}
+        function val(){if(pg===0&&(!pid||pid.trim()==='')){alert('Participant ID required');return false}var p=proj.pages[pg];for(var i=0;i<p.items.length;i++){var q=p.items[i];if(isH(q))continue;var v=ans[q.vName||q.id],ok=v!==undefined&&v!==null&&v!==''&&!(Array.isArray(v)&&v.length===0);if(q.req&&!ok){alert('Required: '+(q['title_'+lang]||q.title_en));return false}if(q.type==='number'&&ok){var n=Number(v);if(q.min!==undefined&&n<q.min){alert('Min: '+q.min);return false}if(q.max!==undefined&&n>q.max){alert('Max: '+q.max);return false}}}return true}
+        function ren(){var p=proj.pages[pg];document.getElementById('s-title').textContent=p['title_'+lang]||p.title_en;document.getElementById('s-prog').textContent='Page '+(pg+1)+' of '+proj.pages.length;document.getElementById('id-con').classList.toggle('hidden',pg!==0);if(pg===0)document.getElementById('p-id').value=pid;document.getElementById('q-con').innerHTML=p.items.map(function(q){var vn=q.vName||q.id;var t=q['title_'+lang]||q.title_en;var r=q.req?'<span class="text-red-500">*</span>':'';var h='';if(q.type==='text')h='<textarea class="w-full p-3 border rounded" onchange="ans[\''+vn+'\']=this.value;evL()">'+(ans[vn]||'')+'</textarea>';else if(q.type==='number')h='<input type="number" class="w-full p-3 border rounded" onchange="ans[\''+vn+'\']=Number(this.value);evL()" value="'+(ans[vn]||'')+'">';else if(q.type==='binary'||q.type==='mcq')h='<div class="space-y-2">'+(q.options||[]).map(function(o){return '<label class="flex items-center gap-3 p-3 border rounded cursor-pointer"><input type="radio" name="'+q.id+'" value="'+o.value+'" onchange="ans[\''+vn+'\']=Number(this.value);evL()" '+(ans[vn]===o.value?'checked':'')+' class="w-5 h-5"><span>'+esc(o['label_'+lang]||o.label_en)+'</span></label>'}).join('')+'</div>';else if(q.type==='checkbox')h='<div class="space-y-2">'+(q.options||[]).map(function(o){var a=Array.isArray(ans[vn])?ans[vn]:[];return '<label class="flex items-center gap-3 p-3 border rounded cursor-pointer"><input type="checkbox" value="'+o.value+'" onchange="var arr=ans[\''+vn+'\']||[];if(this.checked){if(!arr.includes(Number(this.value)))arr.push(Number(this.value));}else{arr=arr.filter(function(x){return x!==Number(this.value)}.bind(this));}ans[\''+vn+'\']=arr;evL()" '+(a.includes(o.value)?'checked':'')+' class="w-5 h-5"><span>'+esc(o['label_'+lang]||o.label_en)+'</span></label>'}).join('')+'</div>';else if(q.type==='likert')h='<div class="flex flex-wrap justify-between gap-2 bg-gray-50 p-4 rounded border">'+(q.options||[]).map(function(o){return '<label class="flex flex-col items-center flex-1 text-center cursor-pointer min-w-[70px]"><input type="radio" name="'+q.id+'" value="'+o.value+'" onchange="ans[\''+vn+'\']=Number(this.value);evL()" '+(ans[vn]===o.value?'checked':'')+' class="w-5 h-5 mb-2"><span class="text-xs font-semibold">'+esc(o['label_'+lang]||o.label_en)+'</span></label>'}).join('')+'</div>';else if(q.type==='scale10')h='<div class="flex flex-wrap justify-between gap-1 bg-gray-50 p-4 rounded border">'+[1,2,3,4,5,6,7,8,9,10].map(function(n){return '<label class="flex flex-col items-center flex-1 cursor-pointer min-w-[40px]"><input type="radio" name="'+q.id+'" value="'+n+'" onchange="ans[\''+vn+'\']=Number(this.value);evL()" '+(ans[vn]===n?'checked':'')+' class="w-5 h-5 mb-2"><span class="text-sm font-bold">'+n+'</span></label>'}).join('')+'</div>';else if(q.type==='signature')h='<div class="sig-canvas p-2"><canvas id="sig-'+q.id+'" width="400" height="150" class="w-full bg-white" style="max-width:100%"></canvas><div class="flex justify-end mt-2"><button onclick="cls(\''+q.id+'\',\''+vn+'\')" class="text-sm bg-red-100 text-red-600 px-3 py-1 rounded">Clear</button></div></div>';else if(q.type==='camera')h='<div class="p-4 border-2 border-dashed border-gray-400 rounded bg-gray-50 text-center"><input type="file" accept="image/*" capture="environment" onchange="var f=this.files[0];var r=new FileReader();r.onload=function(e){ans[\''+vn+'\']=e.target.result};if(f)r.readAsDataURL(f)" class="w-full"></div>';return '<div id="qi-'+q.id+'" class="'+(isH(q)?'hidden':'')+'"><label class="block font-bold mb-2">'+esc(t)+' '+r+'</label>'+h+'</div>'}).join('');document.getElementById('b-prv').classList.toggle('hidden',pg===0);document.getElementById('b-nxt').classList.toggle('hidden',pg===proj.pages.length-1);document.getElementById('b-sav').classList.toggle('hidden',pg!==proj.pages.length-1);initSigs()}
+        function nxt(){if(val()){pg++;ren();window.scrollTo(0,0)}}function prv(){pg--;ren();window.scrollTo(0,0)}
+        function initSigs(){proj.pages[pg].items.filter(function(q){return q.type==='signature'}).forEach(function(q){var c=document.getElementById('sig-'+q.id);if(!c)return;var x=c.getContext('2d'),d=false;function gp(e){var r=c.getBoundingClientRect();return{x:(e.touches?e.touches[0].clientX:e.clientX)-r.left,y:(e.touches?e.touches[0].clientY:e.clientY)-r.top}}function sd(e){d=true;var p=gp(e);x.beginPath();x.moveTo(p.x,p.y);e.preventDefault()}function dr(e){if(!d)return;var p=gp(e);x.lineTo(p.x,p.y);x.stroke();e.preventDefault()}function ed(e){d=false;ans[q.vName||q.id]=c.toDataURL();e.preventDefault()}c.addEventListener('mousedown',sd);c.addEventListener('mousemove',dr);c.addEventListener('mouseup',ed);c.addEventListener('mouseout',ed);c.addEventListener('touchstart',sd);c.addEventListener('touchmove',dr);c.addEventListener('touchend',ed)})}
+        window.cls=function(id,vn){var c=document.getElementById('sig-'+id);if(c){c.getContext('2d').clearRect(0,0,c.width,c.height);delete ans[vn]}}
+        async function sav(){if(!val())return;ans._duration_sec=Math.round((Date.now()-st)/1000);var rec={id:crypto.randomUUID?crypto.randomUUID():'rec_'+Date.now(),participantId:pid,projectId:proj.id,timestamp:Date.now(),answers:ans,_syncStatus:'pending'};await subPut(rec);if(isOnlineMode&&navigator.onLine&&proj.googleUrl){try{await fetch(proj.googleUrl,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(rec)});rec._syncStatus='synced';await subPut(rec);toast('Saved & synced!','success')}catch(e){await qPut(rec);toast('Saved locally. Will sync.','warning')}}else{toast('Saved locally.','success')}ans={};pid='';document.getElementById('p-id').value='';pg=0;goTo('intro')}
+        function checkPin(){var c=prompt('Enter PIN:');if(c===proj.pin){goTo('dash');updDash()}else if(c!==null)alert('Access Denied')}
+        async function updDash(){var d=await subAll();document.getElementById('d-count').textContent=d.length;var s=d.filter(function(r){return r._syncStatus==='synced'}).length;var p=d.length-s;document.getElementById('d-synced').textContent=s;document.getElementById('d-pending').textContent=p;var l=document.getElementById('d-list');l.innerHTML=d.length===0?'<p class="text-center text-gray-500 py-4">No data.</p>':d.map(function(x){return '<div class="p-3 border rounded flex justify-between items-center"><div><span class="font-bold">'+esc(x.participantId)+'</span><span class="text-xs text-gray-500 ml-2">'+new Date(x.timestamp).toLocaleString()+'</span></div><div class="flex gap-2"><button onclick="edt(\''+x.id+'\')" class="text-xs bg-yellow-100 text-yellow-700 px-2 py-1 rounded">Edit</button><button onclick="del(\''+x.id+'\')" class="text-xs bg-red-100 text-red-700 px-2 py-1 rounded">Delete</button></div></div>'}).join('')}
+        window.edt=function(id){var c=prompt('PIN:');if(c!==proj.pin)return alert('Denied');subGet(id).then(function(r){if(r){ans=r.answers;pid=r.participantId;pg=0;goTo('int');ren()}})}
+        window.del=function(id){if(confirm('Delete?')){subDel(id);qDel(id);updDash()}}
+        async function syncAll(){if(!navigator.onLine){toast('Offline','error');return}await processQueue();updDash()}
+        async function exp(){var d=await subAll();if(d.length===0)return alert('No data');var a=document.createElement('a');a.href=URL.createObjectURL(new Blob([JSON.stringify({metadata:{projectName:proj.name,projectId:proj.id,exportedAt:new Date().toISOString(),totalRecords:d.length},data:d},null,2)],{type:'application/json'}));a.download='sync_'+Date.now()+'.json';a.click()}
+
+        /* Bootstrap — always runs, even if a CDN failed */
+        try { updConn(); } catch(e) {}
+        try { goTo('intro'); } catch(e) { alert('Startup error: ' + e.message); }
+        <\/script>
+        <\/body>
+        <\/html>`;
+        }
+
+        // ==========================================
+        // 16. LIKERT BATCH GENERATOR (WORD-STYLE TABLE)
+        // ==========================================
+        const LBG_VERBAL = {
+            3: ["Disagree","Neutral","Agree"],
+            4: ["Strongly Disagree","Disagree","Agree","Strongly Agree"],
+            5: ["Strongly Disagree","Disagree","Neutral","Agree","Strongly Agree"],
+            6: ["Strongly Disagree","Disagree","Somewhat Disagree","Somewhat Agree","Agree","Strongly Agree"],
+            7: ["Strongly Disagree","Disagree","Somewhat Disagree","Neutral","Somewhat Agree","Agree","Strongly Agree"]
+        };
+        const LBG_VERBAL_AR = {
+            3: ["أرفض","محايد","أوافق"],
+            4: ["أرفض بشدة","أرفض","أوافق","أوافق بشدة"],
+            5: ["أرفض بشدة","أرفض","محايد","أوافق","أوافق بشدة"],
+            6: ["أرفض بشدة","أرفض","أرفض نوعاً ما","أوافق نوعاً ما","أوافق","أوافق بشدة"],
+            7: ["أرفض بشدة","أرفض","أرفض نوعاً ما","محايد","أوافق نوعاً ما","أوافق","أوافق بشدة"]
+        };
+
+        function lbgRead(){
+            const points = parseInt(document.getElementById('lbgPoints').value,10) || 5;
+            const start  = parseInt(document.getElementById('lbgStart').value,10);
+            const desc   = document.getElementById('lbgDirection').value === 'desc';
+            const mode   = document.getElementById('lbgLabels').value;
+            const verbal = LBG_VERBAL[points] || [];
+            const verbalAr = LBG_VERBAL_AR[points] || [];
+            const options = [];
+            for(let p = 0; p < points; p++){
+                const score = desc ? (start + points - 1 - p) : (start + p);
+                let labelEn, labelAr;
+                if(mode === 'numbers'){ labelEn = String(score); labelAr = String(score); }
+                else if(mode === 'endpoints' && p !== 0 && p !== points-1){ labelEn = String(score); labelAr = String(score); }
+                else { 
+                    labelEn = verbal[p] || String(score); 
+                    labelAr = verbalAr[p] || verbal[p] || String(score); 
+                }
+                options.push({ label_en: labelEn, label_ar: labelAr, value: score });
+            }
+            return {
+                count : Math.max(1, Math.min(200, parseInt(document.getElementById('lbgCount').value,10) || 5)),
+                prefix: (document.getElementById('lbgPrefix').value || 'Item').trim() || 'Item',
+                target: parseInt(document.getElementById('lbgTargetPage').value,10) || 0,
+                options
+            };
+        }
+
+        function lbgRenderPreview(){
+            const {count, prefix, options} = lbgRead();
+            let h = '<div style="font-size:11px;color:#667;margin:6px 0 4px;">Preview — ' + count + ' items × ' + options.length + '-point scale (cell shows assigned score):</div><table class="lbg-table"><tr><th>Question</th>';
+            options.forEach(o => h += '<th>' + esc(o.label_en) + ' <span style="opacity:.7">[' + o.value + ']</span></th>');
+            h += '</tr>';
+            const rows = Math.min(count, 6);
+            for(let i = 1; i <= rows; i++){
+                h += '<tr><td class="qname">' + esc(prefix) + ' ' + i + '</td>';
+                options.forEach(o => h += '<td><span class="score">' + o.value + '</span></td>');
+                h += '</tr>';
+            }
+            if(count > rows) h += '<tr><td class="qname">…</td>' + options.map(()=>'<td>…</td>').join('') + '</tr>';
+            document.getElementById('lbgPreview').innerHTML = h + '</table>';
+        }
+
+        function lbgUpdateTargetPages(){
+            const sel = document.getElementById('lbgTargetPage');
+            if(!sel) return;
+            sel.innerHTML = '';
+            appState.project.pages.forEach(function(p, i){
+                const opt = document.createElement('option');
+                opt.value = i;
+                opt.textContent = (p.title_en || 'Page ' + (i+1));
+                sel.appendChild(opt);
+            });
+        }
+
+        function lbgGenerate(){
+            const {count, prefix, target, options} = lbgRead();
+            const page = appState.project.pages[target];
+            if(!page) { alert('Target page not found.'); return; }
+            for(let i = 1; i <= count; i++){
+                page.items.push({
+                    id: 'item_' + Date.now() + '_' + i,
+                    vName: formatSPSS(prefix.replace(/\s+/g,'_') + '_' + i),
+                    type: 'likert',
+                    title_en: prefix + ' ' + i,
+                    title_ar: prefix + ' ' + i,
+                    scale: 'Unassigned',
+                    req: false,
+                    options: JSON.parse(JSON.stringify(options))
+                });
+            }
+            renderBuilderPages();
+            showToast('✅ Generated ' + count + ' Likert items into ' + (page.title_en || 'Page'), 'success');
+        }
+
+        // Hook into existing render to keep preview & target page dropdown updated
+        const _origRenderBuilderPages = renderBuilderPages;
+        renderBuilderPages = function(){
+            _origRenderBuilderPages();
+            lbgUpdateTargetPages();
+            lbgRenderPreview();
+        };
+
+        // Live preview on input change inside the generator box
+        document.addEventListener('change', function(e){
+            if(e.target && e.target.closest && e.target.closest('#likertBatchGen')){
+                lbgRenderPreview();
+            }
+        });
+
+        // ==========================================
+        // 15. INITIAL LOAD
+        // ==========================================
+        window.addEventListener('DOMContentLoaded', function() {
+            const saved = localStorage.getItem('clinical_project_state');
+            if (saved) {
+                try {
+                    appState = JSON.parse(saved);
+                    document.getElementById('project-name-display').innerText = appState.project.name;
+                    document.getElementById('cfg-theme').value = appState.project.theme;
+                    document.getElementById('cfg-font').value = appState.project.font;
+                    document.getElementById('cfg-pin').value = appState.project.pin || '';
+                    document.getElementById('cfg-google-url').value = appState.project.googleUrl || '';
+                    document.getElementById('cfg-supabase-url').value = appState.project.supabaseUrl || '';
+                    document.getElementById('cfg-supabase-key').value = appState.project.supabaseKey || '';
+
+                    ['en', 'ar'].forEach(function(lang) {
+                        document.getElementById('res-title-' + lang).value = appState.project[lang]
+                            .title || '';
+                        document.getElementById('res-authors-' + lang).value = appState.project[lang]
+                            .authors || '';
+                        document.getElementById('res-welcome-' + lang).value = appState.project[lang]
+                            .welcome || '';
+                    });
+
+                    updateTheme();
+                    updateFont();
+                } catch (e) { console.error('Error loading saved state:', e); }
+            }
+            initApp();
+        });
+    </script>
+</body>
+</html>
+```
