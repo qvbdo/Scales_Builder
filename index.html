@@ -2015,8 +2015,6 @@
             records.forEach(function(rec) {
                 const row = engine.prepareDataForExport(rec.answers, rec.answers._duration_sec, appState.project,
                     rec.participantId);
-                row._syncStatus = rec._syncStatus || 'pending';
-                row._checksum = rec._checksum || '';
                 allRows.push(row);
             });
 
