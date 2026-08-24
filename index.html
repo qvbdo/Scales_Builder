@@ -1,779 +1,772 @@
 <!DOCTYPE html>
-<html lang="en" dir="auto">
+<html lang="en" dir="ltr">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Clinical Data Dashboard - Hardcoded HTML Edition</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <script src="https://unpkg.com/dexie/dist/dexie.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        primary: 'var(--theme-color, #2563eb)',
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        :root { --theme-color: #2563eb; }
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+        .tab-active { border-bottom: 3px solid var(--theme-color); color: var(--theme-color); font-weight: 600; }
+        .rtl { direction: rtl; text-align: right; }
+        .modal-bg { background: rgba(0,0,0,0.5); backdrop-filter: blur(4px); }
+        .sync-pulse { animation: pulse 2s infinite; }
+        @keyframes pulse { 0% { box-shadow: 0 0 0 0 rgba(34, 197, 94, 0.7); } 70% { box-shadow: 0 0 0 10px rgba(34, 197, 94, 0); } 100% { box-shadow: 0 0 0 0 rgba(34, 197, 94, 0); } }
+        .btn-primary { background-color: var(--theme-color); color: white; }
+        .btn-primary:hover { opacity: 0.9; }
+        .btn-outline { border: 1px solid var(--theme-color); color: var(--theme-color); }
+        .btn-outline:hover { background-color: var(--theme-color); color: white; }
+    </style>
 </head>
-<body class="bg-gray-100 font-sans p-8 transition-all duration-300" id="main-body">
+<body class="bg-gray-50 text-gray-800 min-h-screen flex flex-col">
 
-    <div class="max-w-7xl mx-auto">
-        <!-- Header -->
-        <div class="flex justify-between items-center mb-8 bg-white p-4 rounded-xl shadow-sm border-t-4 border-gray-800">
+    <!-- Header -->
+    <header class="bg-white shadow-sm border-b border-gray-200">
+        <div class="max-w-7xl mx-auto px-4 py-4 flex justify-between items-center">
             <div>
-                <h1 class="text-2xl font-bold text-gray-800">Research Platform v17.8</h1>
-                <p class="text-xs text-gray-500 font-bold uppercase tracking-wider">HTML Hardcoded Keys</p>
+                <h1 class="text-2xl font-bold text-primary">Clinical Data Dashboard</h1>
+                <p class="text-xs text-gray-500">Research Platform v17.8 | HTML Hardcoded Edition</p>
             </div>
-            <div class="flex gap-2">
-                <button onclick="switchView('builder')" id="btn-builder" class="bg-blue-600 text-white px-4 py-2 rounded font-bold shadow transition">1. Builder</button>
-                <button onclick="switchView('preview')" id="btn-preview" class="bg-gray-200 text-gray-700 px-4 py-2 rounded font-bold shadow hover:bg-indigo-500 hover:text-white transition">2. Inspect UI</button>
-                <button onclick="switchView('manager')" id="btn-manager" class="bg-gray-200 text-gray-700 px-4 py-2 rounded font-bold shadow hover:bg-purple-500 hover:text-white transition">3. Master Data Hub</button>
+            <div class="flex items-center gap-4">
+                <span id="sync-status" class="text-sm text-gray-500 flex items-center gap-2">
+                    <span class="w-2 h-2 rounded-full bg-gray-400"></span> Initializing...
+                </span>
             </div>
         </div>
+    </header>
 
-        <!-- 1. Master Builder View -->
-        <div id="view-builder" class="block">
-            <!-- Project Management Bar -->
-            <div class="bg-gray-800 p-4 rounded-xl shadow mb-4 flex justify-between items-center text-white">
-                <div class="flex items-center gap-4">
-                    <span class="font-bold">Active Project:</span>
-                    <input type="text" id="project-name" value="Psychiatric Nursing Curricula" onchange="blueprint.name = this.value" class="bg-gray-700 border border-gray-600 rounded px-3 py-1 font-bold text-blue-300 focus:outline-none focus:border-blue-400 w-80">
-                </div>
-                <div class="flex gap-2">
-                    <button onclick="newProject()" class="bg-green-600 px-4 py-1 rounded font-bold shadow hover:bg-green-500 text-sm">Create New</button>
-                    <button onclick="saveTemplate()" class="bg-blue-600 px-4 py-1 rounded font-bold shadow hover:bg-blue-500 text-sm">💾 Save Project</button>
-                    <button onclick="openProjectManager()" class="bg-gray-600 px-4 py-1 rounded font-bold shadow hover:bg-gray-500 text-sm">📂 Load Project</button>
-                </div>
-            </div>
+    <!-- Navigation Tabs -->
+    <nav class="bg-white border-b border-gray-200">
+        <div class="max-w-7xl mx-auto px-4 flex gap-6">
+            <button onclick="switchTab('builder')" id="tab-builder" class="py-3 px-2 text-sm tab-active">1. Builder</button>
+            <button onclick="switchTab('inspect')" id="tab-inspect" class="py-3 px-2 text-sm text-gray-500 hover:text-gray-700">2. Inspect UI</button>
+            <button onclick="switchTab('hub')" id="tab-hub" class="py-3 px-2 text-sm text-gray-500 hover:text-gray-700">3. Master Data Hub</button>
+        </div>
+    </nav>
 
-            <!-- Settings & Exports Bar -->
-            <div class="bg-white p-5 rounded-xl shadow mb-6 border-l-4 border-indigo-500 space-y-4">
-                <div class="flex flex-wrap gap-6 items-center justify-between border-b pb-4">
-                    <div class="flex gap-6 items-center">
-                        <div class="flex items-center gap-2"><label class="text-sm font-bold">Theme Color:</label><input type="color" id="theme-color" value="#2563eb" onchange="updateTheme('color', this.value)" class="h-8 w-12 cursor-pointer"></div>
-                        <div class="flex items-center gap-2"><label class="text-sm font-bold">Font:</label><select onchange="updateTheme('font', this.value)" class="p-1 border rounded text-sm bg-gray-50"><option value="sans-serif">Modern</option><option value="serif">Academic</option></select></div>
-                        <div class="flex items-center gap-2 border-l pl-4"><label class="text-sm font-bold text-red-600">Security PIN:</label><input type="text" id="app-pin" value="1234" onchange="blueprint.pin = this.value" class="w-20 p-1 border rounded font-mono text-center shadow-inner"></div>
-                    </div>
-                    <div class="flex gap-3">
-                        <button onclick="exportStandaloneForm('offline')" class="bg-emerald-600 text-white px-4 py-2 rounded font-bold shadow hover:bg-emerald-700">💾 Export Offline App (.html)</button>
-                        <button onclick="exportStandaloneForm('online')" class="bg-indigo-600 text-white px-4 py-2 rounded font-bold shadow hover:bg-indigo-700">🌐 Export Online Live App (.html)</button>
+    <main class="flex-1 max-w-7xl mx-auto px-4 py-6 w-full">
+        
+        <!-- ================= 1. BUILDER TAB ================= -->
+        <section id="view-builder" class="space-y-6">
+            <!-- Project Controls -->
+            <div class="bg-white p-6 rounded-lg shadow-sm border border-gray-200">
+                <div class="flex flex-wrap justify-between items-center mb-4">
+                    <h2 class="text-lg font-semibold text-primary">Active Project: <span id="project-name" class="font-normal text-gray-600">Untitled</span></h2>
+                    <div class="flex gap-2">
+                        <button onclick="createNewProject()" class="btn-outline px-3 py-1.5 rounded-md text-sm">Create New</button>
+                        <button onclick="saveProject()" class="btn-primary px-3 py-1.5 rounded-md text-sm">💾 Save Project</button>
+                        <button onclick="document.getElementById('load-project-input').click()" class="btn-outline px-3 py-1.5 rounded-md text-sm">📂 Load Project</button>
+                        <input type="file" id="load-project-input" class="hidden" accept=".json" onchange="loadProject(event)">
                     </div>
                 </div>
-
-                <!-- Cloud Database Credentials Setup -->
-                <div class="bg-indigo-50 p-4 rounded-lg border border-indigo-100 flex flex-col gap-3">
-                    <span class="text-xs font-bold text-indigo-900 uppercase tracking-wider border-b border-indigo-200 pb-2">Cloud Backend Config (Locked to Master Config):</span>
-                    
-                    <div class="flex flex-wrap gap-4 items-center">
-                        <label class="text-sm font-bold text-indigo-800 w-32">Supabase Sync:</label>
-                        <input type="text" id="cloud-url" value="https://racgtsqekgvbvghnkkla.supabase.co/rest/v1/submissions" onchange="if(!blueprint.cloud) blueprint.cloud = {}; blueprint.cloud.url = this.value" class="flex-1 p-2 border rounded text-xs font-mono bg-gray-100 text-gray-800">
-                        <input type="text" id="cloud-key" value="sb_publishable_Vt2kmf7OvA7wZHf4Hl5DXQ_clesdbgB" onchange="if(!blueprint.cloud) blueprint.cloud = {}; blueprint.cloud.key = this.value" class="w-64 p-2 border rounded text-xs font-mono bg-gray-100 text-gray-800">
-                    </div>
-                    
-                    <div class="flex flex-wrap gap-4 items-center mt-2">
-                        <label class="text-sm font-bold text-green-800 w-32">Google Sheet URL:</label>
-                        <input type="text" id="sheet-url" value="https://script.google.com/macros/s/AKfycbyXU4DhqtU8AxYHoMAe4DpwUnTLiJ5vabKlhGKiLXP2V2U71r8VuPhAbagQGikqA8h6ow/exec" onchange="if(!blueprint.cloud) blueprint.cloud = {}; blueprint.cloud.sheetUrl = this.value" class="flex-1 p-2 border border-green-300 bg-green-50 rounded text-xs font-mono text-gray-800">
-                    </div>
-                </div>
-            </div>
-
-            <!-- Intro Page Builder -->
-            <div class="bg-white p-6 rounded-xl shadow mb-6 border-t-4 border-teal-500">
-                <h2 class="text-xl font-bold mb-4 text-teal-900">Research Details (Introductory Page)</h2>
-                <div class="grid grid-cols-2 gap-4">
+                <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-4">
                     <div>
-                        <label class="block text-xs font-bold text-gray-500 mb-1">Study Title (EN)</label>
-                        <input type="text" id="intro-title-en" onchange="if(!blueprint.intro) blueprint.intro={}; blueprint.intro.title_en = this.value" class="w-full border p-2 rounded mb-3 font-bold" placeholder="e.g. Psychiatric Clinical Evaluation">
-                        <label class="block text-xs font-bold text-gray-500 mb-1">Researchers (EN)</label>
-                        <input type="text" id="intro-res-en" onchange="if(!blueprint.intro) blueprint.intro={}; blueprint.intro.researchers_en = this.value" class="w-full border p-2 rounded mb-3" placeholder="e.g. College of Nursing, UO Baghdad">
-                        <label class="block text-xs font-bold text-gray-500 mb-1">Welcome / Consent Text (EN)</label>
-                        <textarea id="intro-text-en" onchange="if(!blueprint.intro) blueprint.intro={}; blueprint.intro.text_en = this.value" class="w-full border p-2 rounded h-24" placeholder="Brief introduction..."></textarea>
+                        <label class="block text-xs font-medium text-gray-500 mb-1">Theme Color</label>
+                        <input type="color" id="cfg-theme" value="#2563eb" onchange="updateTheme()" class="w-full h-9 rounded border-gray-300 cursor-pointer">
                     </div>
-                    <div dir="rtl">
-                        <label class="block text-xs font-bold text-gray-500 mb-1">عنوان الدراسة (AR)</label>
-                        <input type="text" id="intro-title-ar" onchange="if(!blueprint.intro) blueprint.intro={}; blueprint.intro.title_ar = this.value" class="w-full border p-2 rounded mb-3 font-bold" placeholder="مثال: تقييم التدريب السريري النفسي">
-                        <label class="block text-xs font-bold text-gray-500 mb-1">الباحثون (AR)</label>
-                        <input type="text" id="intro-res-ar" onchange="if(!blueprint.intro) blueprint.intro={}; blueprint.intro.researchers_ar = this.value" class="w-full border p-2 rounded mb-3" placeholder="مثال: كلية التمريض، جامعة بغداد">
-                        <label class="block text-xs font-bold text-gray-500 mb-1">نص الترحيب / الموافقة (AR)</label>
-                        <textarea id="intro-text-ar" onchange="if(!blueprint.intro) blueprint.intro={}; blueprint.intro.text_ar = this.value" class="w-full border p-2 rounded h-24" placeholder="مقدمة مختصرة..."></textarea>
+                    <div>
+                        <label class="block text-xs font-medium text-gray-500 mb-1">Font</label>
+                        <select id="cfg-font" onchange="updateFont()" class="w-full h-9 rounded border-gray-300 text-sm">
+                            <option value="'Segoe UI', sans-serif">Modern Academic</option>
+                            <option value="Georgia, serif">Classic Serif</option>
+                            <option value="monospace">Monospace</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-xs font-medium text-gray-500 mb-1">Security PIN</label>
+                        <input type="password" id="cfg-pin" class="w-full h-9 px-2 border border-gray-300 rounded text-sm" placeholder="Optional">
+                    </div>
+                    <div class="flex items-end gap-2">
+                        <button onclick="exportOfflineApp()" class="btn-outline px-3 py-1.5 rounded-md text-sm flex-1">💾 Export Offline (.html)</button>
+                        <button onclick="exportOnlineApp()" class="btn-primary px-3 py-1.5 rounded-md text-sm flex-1">🌐 Export Online (.html)</button>
                     </div>
                 </div>
             </div>
 
-            <div class="bg-white p-6 rounded-xl shadow mb-4 border-t-4 border-blue-600">
-                <div class="flex justify-between items-center mb-6">
-                    <h2 class="text-xl font-bold">Instrument Structure</h2>
-                    <button onclick="addSection()" class="bg-gray-800 text-white px-4 py-2 rounded font-bold hover:bg-gray-700">+ Add New Page</button>
-                </div>
-                <div id="builder-sections-container" class="space-y-8"></div>
-            </div>
-        </div>
-
-        <!-- 2. Inspect (Preview) View -->
-        <div id="view-preview" class="bg-white p-8 rounded-xl shadow hidden border-t-8" style="border-color: var(--theme-color, #2563eb);">
-            <div class="flex justify-between items-center mb-6 bg-yellow-100 text-yellow-800 p-3 rounded font-bold">
-                <span>INSPECT MODE</span>
-                <button onclick="toggleLang()" class="bg-white text-gray-800 px-4 py-1 rounded shadow text-sm border">🌐 EN / AR</button>
-            </div>
-            
-            <div id="preview-intro" class="mb-8 border-b-4 pb-8 hidden">
-                <div class="text-center bg-gray-50 p-8 rounded-xl border border-gray-200">
-                    <h1 id="pv-intro-title" class="text-3xl font-bold text-blue-900 mb-2">Title</h1>
-                    <h3 id="pv-intro-res" class="text-lg font-bold text-gray-600 mb-6">Researchers</h3>
-                    <p id="pv-intro-txt" class="text-gray-700 max-w-2xl mx-auto leading-relaxed whitespace-pre-wrap">Text</p>
-                </div>
-            </div>
-
-            <div id="preview-container"></div>
-            <div class="flex justify-between border-t pt-6 mt-6">
-                <button id="prev-btn-prev" onclick="previewPrevPage()" class="px-6 py-2 rounded font-bold bg-gray-300 text-gray-800 hidden">Previous</button>
-                <div class="flex-1"></div>
-                <button id="prev-btn-next" onclick="previewNextPage()" class="px-6 py-2 rounded font-bold text-white" style="background-color: var(--theme-color, #2563eb);">Next</button>
-                <button id="prev-btn-submit" onclick="alert('Validation passed.')" class="px-6 py-2 rounded font-bold text-white hidden bg-green-600">Submit</button>
-            </div>
-        </div>
-
-        <!-- 3. Master Data Hub -->
-        <div id="view-manager" class="bg-white p-6 rounded-xl shadow hidden border-t-4 border-purple-600">
-            <div class="flex justify-between items-center mb-6">
-                <h2 class="text-xl font-bold">Master Data Hub</h2>
-                <div class="flex gap-2">
-                    <button onclick="fetchCloudSubmissions()" class="bg-indigo-600 text-white px-4 py-2 rounded font-bold shadow hover:bg-indigo-700">☁️ Sync Live Cloud Data</button>
-                    <button onclick="importPacket()" class="bg-yellow-500 text-white px-4 py-2 rounded font-bold shadow hover:bg-yellow-600">📥 Import Offline File (.json)</button>
-                    <button onclick="renderAnalytics()" class="bg-purple-600 text-white px-4 py-2 rounded font-bold shadow hover:bg-purple-700 ml-4">📊 View Analytics</button>
-                    <button onclick="exportPacket()" class="bg-gray-200 text-gray-800 px-4 py-2 rounded font-bold shadow hover:bg-gray-300">Backup (.json)</button>
-                    <button onclick="exportSPSS()" class="bg-blue-600 text-white px-6 py-2 rounded font-bold shadow hover:bg-blue-700">Export SPSS (.csv & .sps)</button>
-                </div>
-            </div>
-            
-            <div id="hub-tables" class="block">
-                <div class="border border-gray-200 rounded mb-6">
-                    <div class="bg-gray-800 text-white p-2 grid grid-cols-5 font-semibold text-sm">
-                        <div>Participant ID</div><div>Project ID</div><div>Time</div><div>Duration</div><div class="text-right">Action</div>
+            <!-- Cloud Config -->
+            <div class="bg-white p-6 rounded-lg shadow-sm border border-gray-200">
+                <h2 class="text-lg font-semibold mb-4 text-primary">Cloud Backend Config</h2>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Google Sheet URL (Web App)</label>
+                        <input type="text" id="cfg-google-url" class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm" placeholder="https://script.google.com/macros/s/...">
                     </div>
-                    <div id="samples-container" class="divide-y divide-gray-200"></div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Supabase Sync (Optional)</label>
+                        <input type="text" id="cfg-supabase" class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm" placeholder="Supabase URL / Key">
+                    </div>
                 </div>
             </div>
 
-            <div id="hub-analytics" class="hidden">
+            <!-- Research Details -->
+            <div class="bg-white p-6 rounded-lg shadow-sm border border-gray-200">
+                <h2 class="text-lg font-semibold mb-4 text-primary">Research Details (Introductory Page)</h2>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div class="space-y-3">
+                        <h3 class="font-semibold text-gray-700">English</h3>
+                        <input type="text" id="res-title-en" class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm" placeholder="Study Title (EN)">
+                        <input type="text" id="res-authors-en" class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm" placeholder="Researchers (EN)">
+                        <textarea id="res-welcome-en" rows="3" class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm" placeholder="Welcome / Consent Text (EN)"></textarea>
+                    </div>
+                    <div class="space-y-3">
+                        <h3 class="font-semibold text-gray-700">العربية</h3>
+                        <input type="text" id="res-title-ar" dir="rtl" class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm rtl" placeholder="عنوان الدراسة (AR)">
+                        <input type="text" id="res-authors-ar" dir="rtl" class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm rtl" placeholder="الباحثون (AR)">
+                        <textarea id="res-welcome-ar" rows="3" dir="rtl" class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm rtl" placeholder="نص الترحيب / الموافقة (AR)"></textarea>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Instrument Structure -->
+            <div class="bg-white p-6 rounded-lg shadow-sm border border-gray-200">
                 <div class="flex justify-between items-center mb-4">
-                    <h3 class="font-bold text-gray-700">Live Frequency Distributions</h3>
-                    <button onclick="closeAnalytics()" class="text-sm font-bold text-red-600 bg-red-100 px-3 py-1 rounded">Close Analytics</button>
+                    <h2 class="text-lg font-semibold text-primary">Instrument Structure</h2>
+                    <button onclick="addNewPage()" class="btn-primary px-4 py-2 rounded-md text-sm">+ Add New Page</button>
                 </div>
-                <div id="analytics-container" class="grid grid-cols-2 gap-6"></div>
+                <div id="builder-pages-container" class="space-y-4">
+                    <!-- Pages injected here -->
+                </div>
+            </div>
+        </section>
+
+        <!-- ================= 2. INSPECT UI TAB ================= -->
+        <section id="view-inspect" class="hidden">
+            <div class="bg-white p-8 rounded-lg shadow-sm border border-gray-200 max-w-3xl mx-auto">
+                <div class="flex justify-between items-center mb-6 border-b pb-4">
+                    <h2 class="text-xl font-bold text-primary" id="inspect-title">Study Title</h2>
+                    <div class="flex gap-2">
+                        <button onclick="setInspectLang('en')" id="btn-lang-en" class="px-3 py-1 text-xs bg-blue-100 text-blue-800 rounded font-semibold">EN</button>
+                        <button onclick="setInspectLang('ar')" id="btn-lang-ar" class="px-3 py-1 text-xs bg-gray-100 text-gray-800 rounded">AR</button>
+                    </div>
+                </div>
+                
+                <div id="inspect-content" class="space-y-4">
+                    <p class="text-gray-600 mb-6" id="inspect-welcome">Welcome text...</p>
+                    <p class="text-sm text-gray-500 italic" id="inspect-authors">Researchers...</p>
+                    
+                    <div id="inspect-pages-container" class="mt-8 space-y-6">
+                        <!-- Instrument pages injected here -->
+                    </div>
+                </div>
+
+                <div class="mt-8 flex justify-between items-center border-t pt-4">
+                    <button onclick="inspectPrev()" id="btn-inspect-prev" class="btn-outline px-4 py-2 rounded-md text-sm hidden">Previous</button>
+                    <div class="flex-1"></div>
+                    <button onclick="inspectNext()" id="btn-inspect-next" class="btn-primary px-4 py-2 rounded-md text-sm">Next</button>
+                    <button onclick="handleFinalSubmit()" id="btn-inspect-submit" class="btn-primary px-6 py-2 rounded-md text-sm font-semibold hidden">Submit</button>
+                </div>
+            </div>
+        </section>
+
+        <!-- ================= 3. MASTER DATA HUB TAB ================= -->
+        <section id="view-hub" class="hidden space-y-6">
+            <div class="flex flex-wrap gap-3">
+                <button onclick="syncManager.processQueue()" class="btn-primary px-4 py-2 rounded-md text-sm flex items-center gap-2">☁️ Sync Live Cloud Data</button>
+                <button onclick="document.getElementById('import-data-input').click()" class="btn-outline px-4 py-2 rounded-md text-sm">📥 Import Offline File (.json)</button>
+                <input type="file" id="import-data-input" class="hidden" accept=".json" onchange="importOfflineData(event)">
+                <button onclick="openAnalytics()" class="bg-purple-600 text-white px-4 py-2 rounded-md text-sm hover:bg-purple-700">📊 View Analytics</button>
+                <button onclick="backupLocal()" class="bg-gray-600 text-white px-4 py-2 rounded-md text-sm hover:bg-gray-700">Backup (.json)</button>
+                <button onclick="exportSPSS()" class="bg-indigo-600 text-white px-4 py-2 rounded-md text-sm hover:bg-indigo-700">Export SPSS (.csv & .sps)</button>
+            </div>
+
+            <div class="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
+                <div class="p-4 border-b border-gray-200 flex justify-between items-center">
+                    <h3 class="font-semibold text-gray-800">Participant Records</h3>
+                    <span id="pending-count" class="text-xs bg-yellow-100 text-yellow-800 px-2 py-1 rounded-full">0 Pending Sync</span>
+                </div>
+                <div class="overflow-x-auto">
+                    <table class="min-w-full divide-y divide-gray-200">
+                        <thead class="bg-gray-50">
+                            <tr>
+                                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Participant ID</th>
+                                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Project ID</th>
+                                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Time</th>
+                                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Duration</th>
+                                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
+                                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Action</th>
+                            </tr>
+                        </thead>
+                        <tbody id="data-table-body" class="bg-white divide-y divide-gray-200">
+                            <tr><td colspan="6" class="px-4 py-8 text-center text-gray-500">No participants recorded yet.</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <!-- ================= MODALS ================= -->
+    <!-- Analytics Modal -->
+    <div id="modal-analytics" class="fixed inset-0 z-50 hidden flex items-center justify-center modal-bg">
+        <div class="bg-white rounded-lg shadow-xl w-full max-w-4xl max-h-[90vh] overflow-hidden flex flex-col">
+            <div class="p-4 border-b flex justify-between items-center">
+                <h3 class="text-lg font-bold text-primary">Live Frequency Distributions</h3>
+                <button onclick="closeModal('modal-analytics')" class="text-gray-500 hover:text-gray-700 text-2xl">&times;</button>
+            </div>
+            <div id="analytics-content" class="p-6 overflow-y-auto flex-1">
+                <!-- Charts injected here -->
             </div>
         </div>
     </div>
 
     <!-- Project Manager Modal -->
-    <div id="modal-projects" class="fixed inset-0 bg-black bg-opacity-60 hidden justify-center items-center p-4 z-50">
-        <div class="bg-white w-full max-w-2xl rounded-xl shadow-2xl p-6">
-            <div class="flex justify-between items-center border-b pb-3 mb-4">
-                <h2 class="text-xl font-bold">Project Manager</h2>
-                <button onclick="closeProjectManager()" class="text-red-500 font-bold px-2 py-1 bg-red-50 rounded">Close</button>
+    <div id="modal-project" class="fixed inset-0 z-50 hidden flex items-center justify-center modal-bg">
+        <div class="bg-white rounded-lg shadow-xl w-full max-w-md p-6">
+            <div class="flex justify-between items-center mb-4">
+                <h3 class="text-lg font-bold text-primary">Project Manager</h3>
+                <button onclick="closeModal('modal-project')" class="text-gray-500 hover:text-gray-700 text-2xl">&times;</button>
             </div>
-            <div class="border rounded bg-gray-50 h-64 overflow-y-auto">
-                <div id="project-list" class="divide-y"></div>
-            </div>
+            <p class="text-gray-600">Project management controls are located in the Builder tab header.</p>
         </div>
     </div>
 
     <script>
-        const db = new Dexie("MasterHubDB_V17");
-        db.version(1).stores({ 
-            submissions: 'id, participantId, projectId, timestamp', 
-            templates: 'id, name, timestamp' 
+        // ==========================================
+        // 1. SPSS DATA ENGINE (NEW ENHANCEMENT)
+        // ==========================================
+        class SPSSDataEngine {
+            constructor() { this.codebook = {}; }
+
+            sanitizeVarName(rawName, prefix = '') {
+                let cleanName = rawName.replace(/[^\x00-\x7F]/g, "").replace(/[^a-zA-Z0-9_]/g, "_").replace(/_+/g, "_").replace(/^_+|_+$/g, "");
+                if (!/^[a-zA-Z]/.test(cleanName)) cleanName = "var_" + cleanName;
+                cleanName = cleanName.substring(0, 64);
+                return prefix ? `${prefix}_${cleanName}` : cleanName;
+            }
+
+            prepareDataForExport(answers, duration, projectConfig) {
+                let flatRow = {};
+                flatRow['ParticipantID'] = 'P_' + Date.now().toString(36) + Math.random().toString(36).substr(2, 4);
+                flatRow['ProjectID'] = projectConfig.id || 'Default';
+                flatRow['Timestamp'] = new Date().toISOString();
+                flatRow['Duration_Sec'] = duration || 0;
+                flatRow['Language'] = currentInspectLang || 'EN';
+
+                projectConfig.pages.forEach((page, pIdx) => {
+                    page.items.forEach((item, iIdx) => {
+                        let varName = this.sanitizeVarName(item.title || `Item_${iIdx}`, `P${pIdx+1}`);
+                        let value = answers[item.id];
+                        
+                        if (item.type === 'scale') {
+                            flatRow[varName] = value ? Number(value) : null;
+                            this.codebook[varName] = {
+                                label: item.title,
+                                type: 'Ordinal',
+                                values: item.options ? item.options.reduce((acc, opt, idx) => { acc[idx + 1] = opt.text; return acc; }, {}) : {}
+                            };
+                        } else {
+                            flatRow[varName] = value ? String(value) : "";
+                            this.codebook[varName] = { label: item.title, type: 'Nominal', values: {} };
+                        }
+                    });
+                });
+                return flatRow;
+            }
+
+            generateSPSSSyntax() {
+                let syntax = "* SPSS Syntax generated by Clinical Data Dashboard;\n* Import the corresponding .csv file using File > Open > Data;\n\n";
+                for (const [varName, meta] of Object.entries(this.codebook)) {
+                    syntax += `VARIABLE LABELS ${varName} "${meta.label.replace(/"/g, '""')}".\n`;
+                    syntax += `VARIABLE LEVEL ${varName} (${meta.type}).\n`;
+                    if (Object.keys(meta.values).length > 0) {
+                        let valLabels = Object.entries(meta.values).map(([k, v]) => `${k}="${v.replace(/"/g, '""')}"`).join(" ");
+                        syntax += `VALUE LABELS ${varName} ${valLabels}.\n`;
+                    }
+                    syntax += "\n";
+                }
+                return syntax + "EXECUTE.\n";
+            }
+        }
+
+        // ==========================================
+        // 2. ROBUST SYNC MANAGER (NEW ENHANCEMENT)
+        // ==========================================
+        class RobustSyncManager {
+            constructor() {
+                this.dbName = 'ClinicalDataDB_v18';
+                this.db = null;
+                this.sheetUrl = localStorage.getItem('cfg_google_url') || '';
+            }
+
+            async init() {
+                return new Promise((resolve, reject) => {
+                    let request = indexedDB.open(this.dbName, 1);
+                    request.onupgradeneeded = (event) => {
+                        let db = event.target.result;
+                        if (!db.objectStoreNames.contains('submissions')) {
+                            let store = db.createObjectStore('submissions', { keyPath: 'localId', autoIncrement: true });
+                            store.createIndex('syncStatus', 'syncStatus', { unique: false });
+                        }
+                    };
+                    request.onsuccess = (event) => { this.db = event.target.result; resolve(); };
+                    request.onerror = (event) => reject(event.target.error);
+                });
+            }
+
+            async queueData(data) {
+                const record = { payload: data, syncStatus: 'pending', attempts: 0, createdAt: Date.now() };
+                return new Promise((resolve, reject) => {
+                    let tx = this.db.transaction(['submissions'], 'readwrite');
+                    tx.objectStore('submissions').add(record);
+                    tx.oncomplete = () => resolve();
+                    tx.onerror = (e) => reject(e.target.error);
+                });
+            }
+
+            async getAllData() {
+                return new Promise((resolve, reject) => {
+                    let tx = this.db.transaction(['submissions'], 'readonly');
+                    let request = tx.objectStore('submissions').getAll();
+                    request.onsuccess = () => resolve(request.result);
+                    request.onerror = (e) => reject(e.target.error);
+                });
+            }
+
+            async processQueue() {
+                if (!navigator.onLine) return updateSyncStatus('offline');
+                if (!this.sheetUrl) return console.warn("Google Sheet URL not configured.");
+
+                updateSyncStatus('syncing');
+                let tx = this.db.transaction(['submissions'], 'readwrite');
+                let store = tx.objectStore('submissions');
+                let request = store.index('syncStatus').getAll('pending');
+
+                request.onsuccess = async (event) => {
+                    const pendingRecords = event.target.result;
+                    let successCount = 0;
+                    for (const record of pendingRecords) {
+                        try {
+                            await this.sendToGoogleSheets(record.payload);
+                            record.syncStatus = 'synced';
+                            record.syncedAt = Date.now();
+                            store.put(record);
+                            successCount++;
+                        } catch (error) {
+                            record.attempts += 1;
+                            if (record.attempts >= 5) record.syncStatus = 'failed';
+                            store.put(record);
+                        }
+                    }
+                    updateSyncStatus(successCount > 0 ? 'synced' : 'idle');
+                    renderMasterHubTable();
+                };
+            }
+
+            async sendToGoogleSheets(data) {
+                const controller = new AbortController();
+                const timeoutId = setTimeout(() => controller.abort(), 10000);
+                try {
+                    await fetch(this.sheetUrl, {
+                        method: 'POST', mode: 'no-cors',
+                        headers: { 'Content-Type': 'text/plain' },
+                        body: JSON.stringify(data), signal: controller.signal
+                    });
+                    clearTimeout(timeoutId);
+                    return true;
+                } catch (error) { clearTimeout(timeoutId); throw error; }
+            }
+        }
+
+        // ==========================================
+        // 3. APP STATE & INITIALIZATION
+        // ==========================================
+        const spssEngine = new SPSSDataEngine();
+        const syncManager = new RobustSyncManager();
+        
+        let appState = {
+            project: {
+                id: 'proj_' + Date.now(),
+                name: 'Untitled Project',
+                theme: '#2563eb',
+                font: "'Segoe UI', sans-serif",
+                pin: '',
+                googleUrl: '',
+                supabase: '',
+                en: { title: '', authors: '', welcome: '' },
+                ar: { title: '', authors: '', welcome: '' },
+                pages: [{ id: 'page_1', items: [] }]
+            }
+        };
+
+        let currentInspectLang = 'en';
+        let currentInspectPage = 0;
+        let inspectAnswers = {};
+        let inspectStartTime = Date.now();
+
+        // Initialize
+        syncManager.init().then(() => {
+            updateSyncStatus('idle');
+            window.addEventListener('online', () => syncManager.processQueue());
+            renderMasterHubTable();
         });
 
-        let currentLang = 'en', currentParticipantId = '';
-        let charts = [];
-
-        function esc(str) {
-            if (str === null || str === undefined) return '';
-            return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+        // ==========================================
+        // 4. UI CONTROLLERS
+        // ==========================================
+        function switchTab(tab) {
+            ['builder', 'inspect', 'hub'].forEach(t => {
+                document.getElementById(`view-${t}`).classList.add('hidden');
+                document.getElementById(`tab-${t}`).classList.remove('tab-active');
+                document.getElementById(`tab-${t}`).classList.add('text-gray-500');
+            });
+            document.getElementById(`view-${tab}`).classList.remove('hidden');
+            document.getElementById(`tab-${tab}`).classList.add('tab-active');
+            document.getElementById(`tab-${tab}`).classList.remove('text-gray-500');
+            
+            if (tab === 'inspect') renderInspectMode();
+            if (tab === 'hub') renderMasterHubTable();
         }
 
-        let blueprint = generateBlankBlueprint();
+        function updateSyncStatus(status) {
+            const el = document.getElementById('sync-status');
+            const colors = { idle: 'bg-gray-400', syncing: 'bg-blue-500 sync-pulse', synced: 'bg-green-500', offline: 'bg-red-500' };
+            const texts = { idle: 'Ready', syncing: 'Syncing...', synced: 'All Synced', offline: 'Offline' };
+            el.innerHTML = `<span class="w-2 h-2 rounded-full ${colors[status]}"></span> ${texts[status]}`;
+        }
 
-        function generateBlankBlueprint() {
-            return {
-                id: 'proj_' + Date.now(),
-                name: 'Psychiatric Nursing Curricula',
-                pin: '1234', 
-                theme: { color: '#2563eb', font: 'sans-serif' },
-                cloud: { 
-                    url: "https://racgtsqekgvbvghnkkla.supabase.co/rest/v1/submissions", 
-                    key: "sb_publishable_Vt2kmf7OvA7wZHf4Hl5DXQ_clesdbgB", 
-                    sheetUrl: "https://script.google.com/macros/s/AKfycbyXU4DhqtU8AxYHoMAe4DpwUnTLiJ5vabKlhGKiLXP2V2U71r8VuPhAbagQGikqA8h6ow/exec" 
-                },
-                intro: {
-                    title_en: 'Psychiatric and Mental Health Evaluation', title_ar: 'التقييم النفسي والصحة العقلية',
-                    researchers_en: 'Master Candidate - College of Nursing UO Baghdad', researchers_ar: 'طالب ماجستير - كلية التمريض، جامعة بغداد',
-                    text_en: 'Welcome. Your responses are confidential and will be used solely for clinical research.', text_ar: 'مرحباً. إجاباتك سرية وستستخدم لأغراض البحث السريري فقط.'
-                },
-                sections: [
-                    {
-                        id: crypto.randomUUID(), title_en: 'Part 1: Demographics', title_ar: 'البيانات الديموغرافية',
-                        questions: [
-                            { id: crypto.randomUUID(), vName: 'Demog_Age', text_en: 'Age', text_ar: 'العمر', type: 'number', scale: 'Demographics', req: true, min: 18, max: 65 }
-                        ]
-                    }
-                ]
+        function closeModal(id) { document.getElementById(id).classList.add('hidden'); }
+
+        // ==========================================
+        // 5. BUILDER LOGIC
+        // ==========================================
+        function updateTheme() {
+            const color = document.getElementById('cfg-theme').value;
+            document.documentElement.style.setProperty('--theme-color', color);
+            appState.project.theme = color;
+        }
+
+        function updateFont() {
+            const font = document.getElementById('cfg-font').value;
+            document.body.style.fontFamily = font;
+            appState.project.font = font;
+        }
+
+        function addNewPage() {
+            appState.project.pages.push({ id: 'page_' + Date.now(), items: [] });
+            renderBuilderPages();
+        }
+
+        function addNewItem(pageIdx, type) {
+            const item = {
+                id: 'item_' + Date.now(),
+                type: type,
+                title: type === 'scale' ? 'New Scale Question' : 'New Text Question',
+                options: type === 'scale' ? [{text:'Strongly Disagree'},{text:'Disagree'},{text:'Neutral'},{text:'Agree'},{text:'Strongly Agree'}] : []
             };
+            appState.project.pages[pageIdx].items.push(item);
+            renderBuilderPages();
         }
 
-        let activePage = 0, answers = {};
-
-        function newProject() {
-            if(confirm("Create a new blank project? Unsaved changes will be lost.")) {
-                blueprint = generateBlankBlueprint(); blueprint.name = "New Blank Project";
-                initBuilderUI();
-            }
+        function deleteItem(pageIdx, itemIdx) {
+            appState.project.pages[pageIdx].items.splice(itemIdx, 1);
+            renderBuilderPages();
         }
 
-        async function saveTemplate() {
-            try {
-                if(!blueprint.cloud) {
-                    blueprint.cloud = { 
-                        url: "https://racgtsqekgvbvghnkkla.supabase.co/rest/v1/submissions", 
-                        key: "sb_publishable_Vt2kmf7OvA7wZHf4Hl5DXQ_clesdbgB", 
-                        sheetUrl: "https://script.google.com/macros/s/AKfycbyXU4DhqtU8AxYHoMAe4DpwUnTLiJ5vabKlhGKiLXP2V2U71r8VuPhAbagQGikqA8h6ow/exec" 
-                    };
-                }
-                const clone = JSON.parse(JSON.stringify(blueprint));
-                await db.templates.put({ id: clone.id, name: clone.name, timestamp: Date.now(), blueprint: clone });
-                alert(`Project "${clone.name}" saved successfully.`);
-            } catch (err) { alert('Error saving project.'); }
-        }
-
-        async function openProjectManager() {
-            const list = document.getElementById('project-list');
-            list.innerHTML = '<p class="p-4 text-center text-gray-500">Loading projects...</p>';
-            document.getElementById('modal-projects').classList.replace('hidden', 'flex');
+        function renderBuilderPages() {
+            const container = document.getElementById('builder-pages-container');
+            container.innerHTML = '';
             
-            const projects = await db.templates.toArray();
-            if(projects.length === 0) {
-                list.innerHTML = '<p class="p-4 text-center text-gray-500">No saved projects found.</p>';
-                return;
-            }
-            
-            list.innerHTML = projects.map(p => `
-                <div class="p-4 flex justify-between items-center hover:bg-gray-100 transition">
-                    <div>
-                        <div class="font-bold text-blue-800">${esc(p.name)}</div>
-                        <div class="text-xs text-gray-500">Saved: ${new Date(p.timestamp).toLocaleString()} | ID: ${p.id}</div>
+            appState.project.pages.forEach((page, pIdx) => {
+                let itemsHtml = page.items.map((item, iIdx) => `
+                    <div class="p-3 bg-gray-50 rounded border flex justify-between items-center">
+                        <div class="flex-1">
+                            <input type="text" value="${item.title}" onchange="appState.project.pages[${pIdx}].items[${iIdx}].title = this.value" class="w-full px-2 py-1 border rounded text-sm">
+                            <span class="text-xs text-gray-500 ml-2">${item.type}</span>
+                        </div>
+                        <button onclick="deleteItem(${pIdx}, ${iIdx})" class="text-red-500 hover:text-red-700 ml-4">Delete</button>
                     </div>
-                    <div class="flex gap-2">
-                        <button onclick="loadTemplate('${p.id}')" class="bg-green-600 text-white px-3 py-1 rounded font-bold text-sm">Load</button>
-                        <button onclick="deleteTemplate('${p.id}')" class="text-red-500 font-bold px-2 py-1 text-sm border border-red-200 rounded hover:bg-red-50">Delete</button>
+                `).join('');
+
+                container.innerHTML += `
+                    <div class="border border-gray-200 rounded-lg p-4">
+                        <div class="flex justify-between items-center mb-3">
+                            <h4 class="font-semibold text-gray-700">Page ${pIdx + 1}</h4>
+                            <div class="flex gap-2">
+                                <button onclick="addNewItem(${pIdx}, 'scale')" class="text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded">+ Scale</button>
+                                <button onclick="addNewItem(${pIdx}, 'text')" class="text-xs bg-green-100 text-green-800 px-2 py-1 rounded">+ Text</button>
+                            </div>
+                        </div>
+                        <div class="space-y-2">${itemsHtml || '<p class="text-sm text-gray-400 italic">No items yet.</p>'}</div>
                     </div>
-                </div>
-            `).join('');
-        }
-        
-        function closeProjectManager() { document.getElementById('modal-projects').classList.replace('flex', 'hidden'); }
-
-        async function loadTemplate(id) {
-            const tmpl = await db.templates.get(id);
-            if (tmpl) {
-                blueprint = tmpl.blueprint;
-                initBuilderUI();
-                closeProjectManager();
-            }
-        }
-        async function deleteTemplate(id) {
-            if(confirm("Delete this project blueprint permanently?")) {
-                await db.templates.delete(id); openProjectManager();
-            }
-        }
-
-        function initBuilderUI() {
-            document.getElementById('project-name').value = blueprint.name;
-            document.getElementById('theme-color').value = blueprint.theme.color;
-            document.getElementById('app-pin').value = blueprint.pin;
-            
-            // STRICT HTML FORCING
-            if(!blueprint.cloud) blueprint.cloud = {};
-            blueprint.cloud.url = "https://racgtsqekgvbvghnkkla.supabase.co/rest/v1/submissions";
-            blueprint.cloud.key = "sb_publishable_Vt2kmf7OvA7wZHf4Hl5DXQ_clesdbgB";
-            blueprint.cloud.sheetUrl = "https://script.google.com/macros/s/AKfycbyXU4DhqtU8AxYHoMAe4DpwUnTLiJ5vabKlhGKiLXP2V2U71r8VuPhAbagQGikqA8h6ow/exec";
-
-            document.getElementById('cloud-url').value = blueprint.cloud.url;
-            document.getElementById('cloud-key').value = blueprint.cloud.key;
-            document.getElementById('sheet-url').value = blueprint.cloud.sheetUrl;
-
-            document.getElementById('intro-title-en').value = blueprint.intro?.title_en || '';
-            document.getElementById('intro-res-en').value = blueprint.intro?.researchers_en || '';
-            document.getElementById('intro-text-en').value = blueprint.intro?.text_en || '';
-            document.getElementById('intro-title-ar').value = blueprint.intro?.title_ar || '';
-            document.getElementById('intro-res-ar').value = blueprint.intro?.researchers_ar || '';
-            document.getElementById('intro-text-ar').value = blueprint.intro?.text_ar || '';
-
-            applyTheme(); renderBuilder();
-        }
-
-        function toggleLang() {
-            currentLang = currentLang === 'en' ? 'ar' : 'en';
-            document.documentElement.dir = currentLang === 'ar' ? 'rtl' : 'ltr';
-            if (!document.getElementById('view-preview').classList.contains('hidden')) renderPreview();
-        }
-
-        function formatSPSS(name) {
-            let clean = name.replace(/\s+/g, '_').replace(/[^a-zA-Z0-9_]/g, ''); 
-            return (!/^[a-zA-Z@]/.test(clean) && clean.length > 0) ? 'V_' + clean : clean;
-        }
-
-        function updateTheme(k, v) { blueprint.theme[k] = v; document.documentElement.style.setProperty('--theme-color', blueprint.theme.color); }
-        
-        function addSection() { blueprint.sections.push({ id: crypto.randomUUID(), title_en: 'New Section', title_ar: 'قسم جديد', questions: [] }); renderBuilder(); }
-        function addQuestion(secId) {
-            blueprint.sections.find(s => s.id === secId).questions.push({ id: crypto.randomUUID(), vName: `Var_${Date.now()}`, text_en: 'Question EN', text_ar: 'السؤال AR', type: 'text', scale: 'Unassigned', req: false });
-            renderBuilder();
-        }
-        function updateQ(secId, qId, field, val) {
-            const q = blueprint.sections.find(s => s.id === secId).questions.find(qu => qu.id === qId);
-            if (field === 'showIf_vName') { if(!q.showIf) q.showIf = {}; q.showIf.vName = val; }
-            else if (field === 'showIf_value') { if(!q.showIf) q.showIf = {}; q.showIf.value = val; }
-            else { q[field] = field === 'vName' ? formatSPSS(val) : val; }
-
-            if (field === 'type' && ['mcq', 'likert', 'checkbox', 'binary'].includes(val) && !q.options) { q.options = [{ label_en: 'Opt 1', label_ar: 'خيار 1', value: 1 }]; }
-            renderBuilder();
-        }
-        function addOption(secId, qId) { const q = blueprint.sections.find(s => s.id === secId).questions.find(qu => qu.id === qId); q.options.push({ label_en: `Opt ${q.options.length+1}`, label_ar: `خيار ${q.options.length+1}`, value: q.options.length+1 }); renderBuilder(); }
-        function updateOption(secId, qId, oIdx, field, val) { blueprint.sections.find(s => s.id === secId).questions.find(qu => qu.id === qId).options[oIdx][field] = field === 'value' ? Number(val) : val; renderBuilder(); }
-
-        function renderBuilder() {
-            document.getElementById('builder-sections-container').innerHTML = blueprint.sections.map((sec, sIdx) => `
-                <div class="border rounded-lg p-5 bg-gray-50 shadow-sm">
-                    <div class="flex gap-4 mb-4 border-b pb-2">
-                        <input type="text" value="${esc(sec.title_en)}" onchange="blueprint.sections[${sIdx}].title_en=this.value;" class="font-bold text-blue-900 bg-transparent flex-1 outline-none border-b" placeholder="Section Title (EN)">
-                        <input type="text" value="${esc(sec.title_ar)}" dir="rtl" onchange="blueprint.sections[${sIdx}].title_ar=this.value;" class="font-bold text-blue-900 bg-transparent flex-1 outline-none border-b" placeholder="Section Title (AR)">
-                        <button onclick="addQuestion('${sec.id}')" class="text-blue-600 font-bold text-sm bg-blue-100 px-3 py-1 rounded">+ Add Q</button>
-                    </div>
-                    <div class="space-y-4 pl-4 border-l-4 border-blue-200">
-                        ${sec.questions.map(q => `
-                            <div class="bg-white p-4 rounded border shadow-sm">
-                                <div class="flex gap-2 mb-2">
-                                    <input type="text" value="${esc(q.vName)}" onchange="updateQ('${sec.id}', '${q.id}', 'vName', this.value)" class="w-1/4 p-2 border font-mono text-sm text-red-600 bg-red-50" placeholder="SPSS Var">
-                                    <input type="text" value="${esc(q.scale)}" onchange="updateQ('${sec.id}', '${q.id}', 'scale', this.value)" class="w-1/4 p-2 border text-sm text-purple-800" placeholder="Scale">
-                                    <select onchange="updateQ('${sec.id}', '${q.id}', 'type', this.value)" class="w-1/4 p-2 border text-sm bg-gray-100 font-bold">
-                                        <option value="text" ${q.type==='text'?'selected':''}>Text</option>
-                                        <option value="number" ${q.type==='number'?'selected':''}>Number</option>
-                                        <option value="binary" ${q.type==='binary'?'selected':''}>Binary</option>
-                                        <option value="mcq" ${q.type==='mcq'?'selected':''}>MCQ</option>
-                                        <option value="checkbox" ${q.type==='checkbox'?'selected':''}>Checkbox</option>
-                                        <option value="likert" ${q.type==='likert'?'selected':''}>Likert</option>
-                                        <option value="scale10" ${q.type==='scale10'?'selected':''}>Scale (1-10)</option>
-                                        <option value="signature" ${q.type==='signature'?'selected':''}>E-Signature</option>
-                                        <option value="camera" ${q.type==='camera'?'selected':''}>Camera / Photo</option>
-                                    </select>
-                                    <div class="flex items-center gap-1 border p-2 bg-yellow-50"><input type="checkbox" ${q.req?'checked':''} onchange="updateQ('${sec.id}', '${q.id}', 'req', this.checked)"> <label class="text-xs font-bold text-yellow-800">Req</label></div>
-                                </div>
-                                <div class="flex gap-2 mb-2">
-                                    <input type="text" value="${esc(q.text_en)}" onchange="updateQ('${sec.id}', '${q.id}', 'text_en', this.value)" class="flex-1 p-2 border font-semibold" placeholder="Question (EN)">
-                                    <input type="text" value="${esc(q.text_ar)}" dir="rtl" onchange="updateQ('${sec.id}', '${q.id}', 'text_ar', this.value)" class="flex-1 p-2 border font-semibold" placeholder="Question (AR)">
-                                </div>
-                                <div class="flex gap-4 mb-3 border-t pt-2">
-                                    <div class="flex-1 flex items-center gap-2 bg-indigo-50 p-2 border border-indigo-100 rounded">
-                                        <span class="text-xs font-bold text-indigo-800">⑂ Show ONLY if:</span>
-                                        <input type="text" value="${esc(q.showIf?.vName)}" onchange="updateQ('${sec.id}', '${q.id}', 'showIf_vName', this.value)" class="p-1 border rounded text-xs w-24" placeholder="Variable">
-                                        <span class="text-xs font-bold">==</span>
-                                        <input type="text" value="${esc(q.showIf?.value)}" onchange="updateQ('${sec.id}', '${q.id}', 'showIf_value', this.value)" class="p-1 border rounded text-xs w-16" placeholder="Val (1)">
-                                    </div>
-                                </div>
-                                ${['mcq', 'likert', 'checkbox', 'binary'].includes(q.type) ? `
-                                    <div class="bg-gray-50 p-3 rounded border border-dashed">
-                                        ${(q.options || []).map((opt, oIdx) => `
-                                            <div class="flex gap-2 mb-2">
-                                                <input type="text" value="${esc(opt.label_en)}" onchange="updateOption('${sec.id}', '${q.id}', ${oIdx}, 'label_en', this.value)" class="flex-1 p-1 border text-sm" placeholder="Label EN">
-                                                <input type="text" value="${esc(opt.label_ar)}" dir="rtl" onchange="updateOption('${sec.id}', '${q.id}', ${oIdx}, 'label_ar', this.value)" class="flex-1 p-1 border text-sm" placeholder="Label AR">
-                                                <input type="number" value="${opt.value}" onchange="updateOption('${sec.id}', '${q.id}', ${oIdx}, 'value', this.value)" class="w-16 p-1 border text-sm font-mono">
-                                            </div>`).join('')}
-                                        ${q.type !== 'binary' ? `<button onclick="addOption('${sec.id}', '${q.id}')" class="text-xs text-blue-600 font-bold">+ Option</button>` : ''}
-                                    </div>` : ''}
-                            </div>`).join('')}
-                    </div>
-                </div>`).join('');
-        }
-
-        function isHiddenByLogic(q) { if (!q.showIf || !q.showIf.vName) return false; return String(answers[q.showIf.vName]) !== String(q.showIf.value); }
-        function evaluateLogic() { const sec = blueprint.sections[activePage]; sec.questions.forEach(q => { const el = document.getElementById('q-wrap-' + q.id); const isHidden = isHiddenByLogic(q); if (el) el.classList.toggle('hidden', isHidden); if (isHidden) delete answers[q.vName]; }); }
-        
-        function valPg() {
-            const sec = blueprint.sections[activePage];
-            for (let q of sec.questions) {
-                if (isHiddenByLogic(q)) continue;
-                let v = answers[q.vName], isAns = v !== undefined && v !== null && v !== '' && !(Array.isArray(v) && v.length === 0);
-                if (q.req && !isAns) { alert(`Required: ${q['text_'+currentLang]}`); return false; }
-            } return true;
-        }
-
-        function genInput(q) {
-            const aK = `answers['${q.vName}']`; let html = ''; const txt = esc(q['text_'+currentLang]), rq = q.req ? '<span class="text-red-500">*</span>' : '';
-            if (q.type === 'number') html = `<input type="number" class="w-full p-3 border rounded" onchange="${aK}=Number(this.value); evaluateLogic();">`;
-            if (q.type === 'text') html = `<textarea class="w-full p-3 border rounded" onchange="${aK}=this.value; evaluateLogic();"></textarea>`;
-            if (q.type === 'binary' || q.type === 'mcq') html = `<div class="space-y-2">` + (q.options||[]).map(o => `<label class="flex items-center space-x-3 p-3 border rounded cursor-pointer"><input type="radio" name="${q.id}" value="${o.value}" onchange="${aK}=Number(this.value); evaluateLogic();"> <span>${esc(o['label_'+currentLang])}</span></label>`).join('') + `</div>`;
-            if (q.type === 'checkbox') html = `<div class="space-y-2">` + (q.options||[]).map(o => `<label class="flex items-center space-x-3 p-3 border rounded cursor-pointer"><input type="checkbox" value="${o.value}" onchange="if(!answers['${q.vName}']) answers['${q.vName}']=[]; if(this.checked) answers['${q.vName}'].push(Number(this.value)); else answers['${q.vName}']=answers['${q.vName}'].filter(x=>x!==Number(this.value)); evaluateLogic();"> <span>${esc(o['label_'+currentLang])}</span></label>`).join('') + `</div>`;
-            if (q.type === 'likert') html = `<div class="flex justify-between space-x-2 bg-gray-50 p-4 rounded border">` + (q.options||[]).map(o => `<label class="flex flex-col items-center flex-1 text-center cursor-pointer"><input type="radio" name="${q.id}" value="${o.value}" onchange="${aK}=Number(this.value); evaluateLogic();" class="w-5 h-5 mb-2"> <span class="text-xs font-semibold">${esc(o['label_'+currentLang])}</span></label>`).join('') + `</div>`;
-            if (q.type === 'scale10') html = `<div class="flex justify-between space-x-1 bg-gray-50 p-3 rounded border">` + [1,2,3,4,5,6,7,8,9,10].map(n => `<label class="flex flex-col items-center flex-1 cursor-pointer"><input type="radio" name="${q.id}" value="${n}" onchange="${aK}=Number(this.value); evaluateLogic();" class="w-5 h-5 mb-2"> <span class="text-xs font-bold text-gray-700">${n}</span></label>`).join('') + `</div>`;
-            if (q.type === 'signature') html = `<div class="border-2 border-dashed border-gray-400 rounded bg-gray-50 p-2"><canvas id="sig-${q.id}" width="400" height="150" class="w-full bg-white border cursor-crosshair touch-none" style="max-width:100%;"></canvas><div class="flex justify-end mt-2"><button type="button" onclick="clearSig('${q.id}', '${q.vName}')" class="text-xs bg-red-100 text-red-600 px-2 py-1 rounded">Clear</button></div></div>`;
-            if (q.type === 'camera') html = `<div class="p-4 border-2 border-dashed border-gray-400 rounded bg-gray-50 text-center"><input type="file" accept="image/*" capture="environment" onchange="const f=this.files[0]; const r=new FileReader(); r.onload=e=>{${aK}=e.target.result; evaluateLogic();}; if(f) r.readAsDataURL(f);" class="text-sm"></div>`;
-            return `<label class="block font-bold text-lg mb-3">${txt} ${rq}</label>${html}`;
-        }
-
-        function renderPreview() {
-            const pvIntro = document.getElementById('preview-intro');
-            if(blueprint.intro && (blueprint.intro.title_en || blueprint.intro.title_ar)) {
-                pvIntro.classList.remove('hidden');
-                document.getElementById('pv-intro-title').innerText = blueprint.intro['title_'+currentLang] || '';
-                document.getElementById('pv-intro-res').innerText = blueprint.intro['researchers_'+currentLang] || '';
-                document.getElementById('pv-intro-txt').innerText = blueprint.intro['text_'+currentLang] || '';
-            } else { pvIntro.classList.add('hidden'); }
-
-            const sec = blueprint.sections[activePage];
-            document.getElementById('preview-container').innerHTML = `<div class="mb-6 border-b pb-4"><h2 class="text-2xl font-bold">${esc(sec['title_'+currentLang])}</h2></div>` + sec.questions.map(q => `<div id="q-wrap-${q.id}" class="mb-6 ${isHiddenByLogic(q)?'hidden':''}">${genInput(q)}</div>`).join('');
-            document.getElementById('prev-btn-prev').classList.toggle('hidden', activePage === 0); document.getElementById('prev-btn-next').classList.toggle('hidden', activePage === blueprint.sections.length - 1); document.getElementById('prev-btn-submit').classList.toggle('hidden', activePage !== blueprint.sections.length - 1);
-        }
-        function previewNextPage() { if(!valPg()) return; activePage++; renderPreview(); }
-        function previewPrevPage() { activePage--; renderPreview(); }
-
-        async function loadSamples() {
-            const data = await db.submissions.where({projectId: blueprint.id}).toArray(); 
-            const c = document.getElementById('samples-container');
-            c.innerHTML = data.length === 0 ? '<div class="p-4 text-center text-gray-500">No samples for this project.</div>' : data.map(d => `<div class="p-3 flex justify-between items-center text-sm border-b"><span class="font-bold text-blue-700">${esc(d.participantId)}</span><span class="font-mono text-gray-400">${d.id.split('-')[0]}</span><span>${new Date(d.timestamp).toLocaleString()}</span><span>${d.answers._duration_sec ? d.answers._duration_sec + 's' : 'N/A'}</span><button onclick="db.submissions.delete('${d.id}'); loadSamples();" class="text-red-500">Delete</button></div>`).join('');
-        }
-
-        async function fetchCloudSubmissions() {
-            if (!blueprint.cloud?.url) return alert('Cloud URL not set in Builder Settings.');
-            try {
-                const fetchUrl = new URL(blueprint.cloud.url);
-                fetchUrl.searchParams.append('projectId', 'eq.' + blueprint.id);
-                
-                const res = await fetch(fetchUrl.toString(), { 
-                    headers: { 'apikey': blueprint.cloud.key || '', 'Authorization': 'Bearer ' + (blueprint.cloud.key || '') } 
-                });
-                const rows = await res.json();
-                
-                if (Array.isArray(rows)) {
-                    for (let r of rows) { await db.submissions.put(r); }
-                    alert(`Successfully downloaded and synced ${rows.length} remote samples for this specific project!`);
-                    loadSamples();
-                } else alert('Cloud endpoint responded with non-array payload.');
-            } catch (e) { alert('Error contacting Cloud DB: ' + e.message); }
-        }
-
-        async function renderAnalytics() {
-            document.getElementById('hub-tables').classList.add('hidden'); document.getElementById('hub-analytics').classList.remove('hidden');
-            const data = await db.submissions.where({projectId: blueprint.id}).toArray(); const container = document.getElementById('analytics-container'); container.innerHTML = '';
-            charts.forEach(c => c.destroy()); charts = [];
-            if(data.length === 0) { container.innerHTML = '<p class="col-span-2 text-gray-500 text-center">Collect samples to view analytics.</p>'; return; }
-            
-            let targetQuestions = []; blueprint.sections.forEach(sec => { sec.questions.forEach(q => { if(['mcq', 'likert', 'binary', 'scale10'].includes(q.type)) targetQuestions.push(q); }); });
-            
-            targetQuestions.forEach(q => {
-                let counts = {}; 
-                if (q.type === 'scale10') { [1,2,3,4,5,6,7,8,9,10].forEach(n => counts[n] = 0); } 
-                else { q.options.forEach(o => counts[o.label_en] = 0); }
-                
-                data.forEach(d => { 
-                    let val = d.answers[q.vName]; 
-                    if (q.type === 'scale10') { if (val >= 1 && val <= 10) counts[val]++; }
-                    else { let opt = q.options.find(o => o.value === val); if(opt) counts[opt.label_en]++; }
-                });
-                const wrapper = document.createElement('div'); wrapper.className = 'bg-white p-4 border rounded shadow-sm'; wrapper.innerHTML = `<h4 class="font-bold text-sm mb-4 text-center truncate">${esc(q.text_en)}</h4><canvas id="chart-${q.id}"></canvas>`;
-                container.appendChild(wrapper);
-                const ctx = document.getElementById(`chart-${q.id}`).getContext('2d');
-                charts.push(new Chart(ctx, { type: 'bar', data: { labels: Object.keys(counts), datasets: [{ label: 'Frequency', data: Object.values(counts), backgroundColor: blueprint.theme.color + '80', borderColor: blueprint.theme.color, borderWidth: 1 }] }, options: { responsive: true, scales: { y: { beginAtZero: true, ticks: { stepSize: 1 } } } } }));
+                `;
             });
         }
-        function closeAnalytics() { document.getElementById('hub-analytics').classList.add('hidden'); document.getElementById('hub-tables').classList.remove('hidden'); }
+
+        function saveProject() {
+            // Gather all inputs
+            appState.project.name = document.getElementById('project-name').innerText;
+            appState.project.googleUrl = document.getElementById('cfg-google-url').value;
+            appState.project.supabase = document.getElementById('cfg-supabase').value;
+            appState.project.pin = document.getElementById('cfg-pin').value;
+            
+            ['en', 'ar'].forEach(lang => {
+                appState.project[lang].title = document.getElementById(`res-title-${lang}`).value;
+                appState.project[lang].authors = document.getElementById(`res-authors-${lang}`).value;
+                appState.project[lang].welcome = document.getElementById(`res-welcome-${lang}`).value;
+            });
+
+            localStorage.setItem('clinical_project_state', JSON.stringify(appState));
+            syncManager.sheetUrl = appState.project.googleUrl;
+            alert('Project saved successfully!');
+        }
+
+        function createNewProject() {
+            if(confirm('Create a new project? Unsaved changes will be lost.')) {
+                localStorage.removeItem('clinical_project_state');
+                location.reload();
+            }
+        }
+
+        function loadProject(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                try {
+                    appState = JSON.parse(e.target.result);
+                    localStorage.setItem('clinical_project_state', JSON.stringify(appState));
+                    location.reload();
+                } catch (err) { alert('Invalid project file.'); }
+            };
+            reader.readAsText(file);
+        }
+
+        function exportOfflineApp() {
+            saveProject(); // Save current state first
+            const stateStr = JSON.stringify(appState).replace(/</g, '\\u003c');
+            const htmlTemplate = document.documentElement.outerHTML.replace(/<script>[\s\S]*?<\/script>/, `<script>const appState = ${stateStr};</script>`);
+            downloadFile(htmlTemplate, `${appState.project.name}_Offline.html`, 'text/html');
+        }
+
+        function exportOnlineApp() {
+            saveProject();
+            // For online, we keep the Tailwind CDN link
+            const stateStr = JSON.stringify(appState).replace(/</g, '\\u003c');
+            let htmlTemplate = document.documentElement.outerHTML;
+            htmlTemplate = htmlTemplate.replace(/<script>[\s\S]*?<\/script>/, `<script>const appState = ${stateStr};</script>`);
+            downloadFile(htmlTemplate, `${appState.project.name}_Online.html`, 'text/html');
+        }
+
+        // ==========================================
+        // 6. INSPECT MODE LOGIC
+        // ==========================================
+        function setInspectLang(lang) {
+            currentInspectLang = lang;
+            document.getElementById('btn-lang-en').className = `px-3 py-1 text-xs rounded ${lang==='en' ? 'bg-blue-100 text-blue-800 font-semibold' : 'bg-gray-100 text-gray-800'}`;
+            document.getElementById('btn-lang-ar').className = `px-3 py-1 text-xs rounded ${lang==='ar' ? 'bg-blue-100 text-blue-800 font-semibold' : 'bg-gray-100 text-gray-800'}`;
+            renderInspectMode();
+        }
+
+        function renderInspectMode() {
+            const p = appState.project;
+            const lang = currentInspectLang;
+            const isAr = lang === 'ar';
+            
+            document.getElementById('inspect-content').classList.toggle('rtl', isAr);
+            document.getElementById('inspect-title').innerText = p[lang].title || 'Untitled Study';
+            document.getElementById('inspect-authors').innerText = p[lang].authors || 'Researchers';
+            document.getElementById('inspect-welcome').innerText = p[lang].welcome || 'Welcome text...';
+
+            const container = document.getElementById('inspect-pages-container');
+            container.innerHTML = '';
+
+            const page = p.pages[currentInspectPage];
+            if (!page) return;
+
+            let pageHtml = `<h3 class="text-lg font-bold mb-4 text-primary">Page ${currentInspectPage + 1}</h3>`;
+            
+            page.items.forEach((item, idx) => {
+                if (item.type === 'scale') {
+                    let optionsHtml = item.options.map((opt, oIdx) => `
+                        <label class="flex flex-col items-center gap-1 cursor-pointer">
+                            <input type="radio" name="${item.id}" value="${oIdx+1}" class="w-5 h-5" onchange="inspectAnswers['${item.id}'] = this.value">
+                            <span class="text-xs text-center">${opt.text}</span>
+                        </label>
+                    `).join('');
+                    pageHtml += `
+                        <div class="p-4 border rounded-lg">
+                            <p class="font-medium mb-3">${idx+1}. ${item.title}</p>
+                            <div class="flex justify-around">${optionsHtml}</div>
+                        </div>
+                    `;
+                } else {
+                    pageHtml += `
+                        <div class="p-4 border rounded-lg">
+                            <p class="font-medium mb-2">${idx+1}. ${item.title}</p>
+                            <textarea class="w-full p-2 border rounded" onchange="inspectAnswers['${item.id}'] = this.value"></textarea>
+                        </div>
+                    `;
+                }
+            });
+            container.innerHTML = pageHtml;
+
+            // Navigation logic
+            document.getElementById('btn-inspect-prev').classList.toggle('hidden', currentInspectPage === 0);
+            const isLastPage = currentInspectPage === p.pages.length - 1;
+            document.getElementById('btn-inspect-next').classList.toggle('hidden', isLastPage);
+            document.getElementById('btn-inspect-submit').classList.toggle('hidden', !isLastPage);
+        }
+
+        function inspectPrev() { if (currentInspectPage > 0) { currentInspectPage--; renderInspectMode(); } }
+        function inspectNext() { if (currentInspectPage < appState.project.pages.length - 1) { currentInspectPage++; renderInspectMode(); } }
+
+        async function handleFinalSubmit() {
+            const duration = Math.floor((Date.now() - inspectStartTime) / 1000);
+            const spssData = spssEngine.prepareDataForExport(inspectAnswers, duration, appState.project);
+            
+            await syncManager.queueData(spssData);
+            await syncManager.processQueue();
+            
+            alert('Data secured locally and submitted successfully!');
+            
+            // Reset
+            inspectAnswers = {};
+            currentInspectPage = 0;
+            inspectStartTime = Date.now();
+            renderInspectMode();
+        }
+
+        // ==========================================
+        // 7. MASTER DATA HUB LOGIC
+        // ==========================================
+        async function renderMasterHubTable() {
+            const tbody = document.getElementById('data-table-body');
+            const records = await syncManager.getAllData();
+            tbody.innerHTML = '';
+            let pendingCount = 0;
+
+            if (records.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="6" class="px-4 py-8 text-center text-gray-500">No participants recorded yet.</td></tr>';
+            } else {
+                records.sort((a, b) => b.createdAt - a.createdAt).forEach(rec => {
+                    if (rec.syncStatus === 'pending') pendingCount++;
+                    const statusColor = rec.syncStatus === 'synced' ? 'green' : (rec.syncStatus === 'failed' ? 'red' : 'yellow');
+                    tbody.innerHTML += `
+                        <tr>
+                            <td class="px-4 py-3 text-sm font-mono">${rec.payload.ParticipantID}</td>
+                            <td class="px-4 py-3 text-sm">${rec.payload.ProjectID}</td>
+                            <td class="px-4 py-3 text-sm">${new Date(rec.payload.Timestamp).toLocaleString()}</td>
+                            <td class="px-4 py-3 text-sm">${rec.payload.Duration_Sec}s</td>
+                            <td class="px-4 py-3 text-sm"><span class="px-2 py-1 text-xs rounded-full bg-${statusColor}-100 text-${statusColor}-800">${rec.syncStatus}</span></td>
+                            <td class="px-4 py-3 text-sm text-blue-600 cursor-pointer hover:underline" onclick="alert(JSON.stringify(${JSON.stringify(rec.payload)}, null, 2))">View</td>
+                        </tr>
+                    `;
+                });
+            }
+            document.getElementById('pending-count').innerText = `${pendingCount} Pending Sync`;
+        }
 
         async function exportSPSS() {
-            const data = await db.submissions.where({projectId: blueprint.id}).toArray(); if(data.length===0) return alert('No data!');
-            let headers = ['Participant_ID', 'Project_ID', 'Submission_ID', 'Timestamp', 'Duration_Sec'], varLabels = [], valLabels = [], scales = {};
-            blueprint.sections.forEach(sec => sec.questions.forEach(q => {
-                if (q.scale && q.scale !== 'Unassigned' && q.scale !== 'Demographics' && q.scale !== 'Consent' && q.scale !== 'Documentation') { if (!scales[q.scale]) scales[q.scale] = []; scales[q.scale].push(q.vName); }
-                const cText = q.text_en.replace(/'/g, "");
-                if(q.type === 'signature' || q.type === 'camera') { headers.push(q.vName); varLabels.push(`VARIABLE LABELS ${q.vName} '${cText}'.`); valLabels.push(`VALUE LABELS ${q.vName} 0 'Missing' 1 'Captured'.`); }
-                else if (q.type === 'checkbox') { (q.options || []).forEach(opt => { headers.push(`${q.vName}_${opt.value}`); varLabels.push(`VARIABLE LABELS ${q.vName}_${opt.value} '${cText} - ${opt.label_en}'.`); valLabels.push(`VALUE LABELS ${q.vName}_${opt.value} 0 'Not Selected' 1 'Selected'.`); }); } 
-                else if (q.type === 'scale10') { headers.push(q.vName); varLabels.push(`VARIABLE LABELS ${q.vName} '${cText}'.`); valLabels.push(`VALUE LABELS ${q.vName} 1 '1' 2 '2' 3 '3' 4 '4' 5 '5' 6 '6' 7 '7' 8 '8' 9 '9' 10 '10'.`); }
-                else { headers.push(q.vName); varLabels.push(`VARIABLE LABELS ${q.vName} '${cText}'.`); if (['mcq', 'likert', 'binary'].includes(q.type) && q.options) { valLabels.push(`VALUE LABELS ${q.vName} ` + q.options.map(o => `${o.value} '${o.label_en}'`).join(' ') + '.'); } }
-            }));
-            let csv = headers.join(',') + '\n';
-            data.forEach(sub => { 
-                let row = [sub.participantId, sub.projectId, sub.id, new Date(sub.timestamp).toISOString(), sub.answers._duration_sec || '']; 
-                blueprint.sections.forEach(sec => sec.questions.forEach(q => { 
-                    let val = sub.answers[q.vName];
-                    if(q.type === 'signature' || q.type === 'camera') { row.push(val ? 1 : 0); }
-                    else if (q.type === 'checkbox') { let arr = Array.isArray(val) ? val : []; (q.options || []).forEach(opt => row.push(arr.includes(opt.value) ? 1 : 0)); } 
-                    else { row.push(val !== undefined ? val : ''); } 
-                })); csv += row.join(',') + '\n'; 
+            const records = await syncManager.getAllData();
+            if (records.length === 0) return alert("No data to export.");
+
+            const headers = Object.keys(records[0].payload);
+            let csvContent = headers.join(",") + "\n";
+            records.forEach(rec => {
+                const row = headers.map(h => {
+                    let val = rec.payload[h];
+                    if (val === null || val === undefined) return "";
+                    val = String(val).replace(/"/g, '""');
+                    return `"${val}"`;
+                });
+                csvContent += row.join(",") + "\n";
             });
-            let sps = `* SPSS SETUP SCRIPT\n* 1. LABELS\n${varLabels.join('\n')}\nEXECUTE.\n* 2. VALUES\n${valLabels.join('\n')}\nEXECUTE.\n* 3. SCALES\n`;
-            for (const [s, v] of Object.entries(scales)) { sps += `COMPUTE ${s.replace(/\s+/g, '_').replace(/[^a-zA-Z0-9_]/g, '')}_Total = SUM(${v.join(', ')}).\n`; } sps += `EXECUTE.\n`;
-            const t = Date.now();
-            const cL = document.createElement('a'); cL.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8;' })); cL.download = `SPSS_Data_${t}.csv`; cL.click();
-            setTimeout(() => { const sL = document.createElement('a'); sL.href = URL.createObjectURL(new Blob([sps], { type: 'text/plain;charset=utf-8;' })); sL.download = `SPSS_Setup_${t}.sps`; sL.click(); }, 500);
+
+            downloadFile(csvContent, 'data_export.csv', 'text/csv');
+            downloadFile(spssEngine.generateSPSSSyntax(), 'metadata_syntax.sps', 'text/plain');
         }
 
-        async function exportPacket() { const data = await db.submissions.where({projectId: blueprint.id}).toArray(); if(data.length===0) return alert('No data!'); const l = document.createElement('a'); l.href = URL.createObjectURL(new Blob([JSON.stringify({ data }, null, 2)], { type: 'application/json' })); l.download = `Master_Backup_${blueprint.name.replace(/\s/g,'_')}.json`; l.click(); }
-        
-        function importPacket() {
-            const input = document.createElement('input'); input.type = 'file'; input.accept = '.json';
-            input.onchange = e => {
-                const reader = new FileReader();
-                reader.onload = async ev => {
-                    try {
-                        const json = JSON.parse(ev.target.result);
-                        if (json.data && Array.isArray(json.data)) {
-                            for (let d of json.data) { await db.submissions.put(d); }
-                            alert(`${json.data.length} records imported!`); loadSamples();
-                        } else alert('Invalid sync packet.');
-                    } catch(err) { alert('Error parsing the file.'); }
-                }; reader.readAsText(e.target.files[0]);
-            }; input.click();
-        }
+        async function openAnalytics() {
+            const records = await syncManager.getAllData();
+            const container = document.getElementById('analytics-content');
+            container.innerHTML = '';
 
-        function switchView(view) {
-            document.getElementById('view-builder').classList.toggle('hidden', view !== 'builder'); document.getElementById('view-preview').classList.toggle('hidden', view !== 'preview'); document.getElementById('view-manager').classList.toggle('hidden', view !== 'manager');
-            ['builder', 'preview', 'manager'].forEach(v => document.getElementById(`btn-${v}`).className = `px-4 py-2 rounded font-bold shadow transition ${view === v ? 'bg-blue-600 text-white' : 'bg-gray-200 text-gray-700 hover:bg-gray-300'}`);
-            if (view === 'builder') renderBuilder(); if (view === 'preview') { activePage = 0; renderPreview(); } if (view === 'manager') { closeAnalytics(); loadSamples(); }
-        }
+            if (records.length === 0) {
+                container.innerHTML = '<p class="text-gray-500">No data to analyze yet.</p>';
+            } else {
+                // Simple frequency calculation for scale items
+                const freqs = {};
+                records.forEach(rec => {
+                    for (const [key, val] of Object.entries(rec.payload)) {
+                        if (key.startsWith('P') && val !== null && !isNaN(val)) {
+                            if (!freqs[key]) freqs[key] = {};
+                            freqs[key][val] = (freqs[key][val] || 0) + 1;
+                        }
+                    }
+                });
 
-        // --- Dual-Mode Offline / Online App Bundler ---
-        function exportStandaloneForm(mode) {
-            if (mode === 'online' && !blueprint.cloud?.url && !blueprint.cloud?.sheetUrl) {
-                return alert('Please enter at least one Cloud Endpoint URL (Supabase or Google Sheets) in the Builder settings before exporting the Live Online App.');
+                for (const [varName, counts] of Object.entries(freqs)) {
+                    const total = Object.values(counts).reduce((a, b) => a + b, 0);
+                    let chartHtml = `<div class="mb-6"><h4 class="font-semibold mb-2">${varName} (N=${total})</h4>`;
+                    for (const [val, count] of Object.entries(counts).sort()) {
+                        const pct = ((count / total) * 100).toFixed(1);
+                        chartHtml += `
+                            <div class="flex items-center gap-2 mb-1">
+                                <span class="w-12 text-sm text-right">${val}</span>
+                                <div class="flex-1 bg-gray-200 rounded-full h-4">
+                                    <div class="bg-primary h-4 rounded-full" style="width: ${pct}%"></div>
+                                </div>
+                                <span class="w-16 text-sm">${count} (${pct}%)</span>
+                            </div>
+                        `;
+                    }
+                    chartHtml += `</div>`;
+                    container.innerHTML += chartHtml;
+                }
             }
-
-            const tmpl = `<!DOCTYPE html><html lang="en" dir="auto"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>${esc(blueprint.name)} - Collector</title>
-<scr`+`ipt src="https://cdn.tailwindcss.com"></scr`+`ipt>
-<scr`+`ipt src="https://unpkg.com/dexie/dist/dexie.js"></scr`+`ipt></head>
-<body class="bg-gray-100 font-sans p-2 sm:p-4 md:p-8" style="font-family: ${blueprint.theme.font};">
-    <div class="max-w-4xl mx-auto">
-        <!-- Header -->
-        <div class="bg-white p-4 rounded-xl shadow mb-4 flex flex-col sm:flex-row justify-between items-center border-t-8 gap-4" style="border-color: ${blueprint.theme.color};">
-            <h1 class="text-xl font-bold text-center sm:text-left">${esc(blueprint.name)}</h1>
-            <div class="flex gap-2 w-full sm:w-auto">
-                <button onclick="goTo('intro')" class="flex-1 sm:flex-none bg-green-600 text-white px-4 py-3 sm:py-2 rounded font-bold shadow hover:bg-green-700 transition">1. Collect</button>
-                <button onclick="checkPin()" class="flex-1 sm:flex-none bg-purple-600 text-white px-4 py-3 sm:py-2 rounded font-bold shadow hover:bg-purple-700 transition">2. Dashboard</button>
-            </div>
-        </div>
-        
-        <!-- Intro View -->
-        <div id="v-intro" class="bg-white p-6 sm:p-10 rounded-xl shadow text-center hidden border-t-4 border-blue-500">
-            <div class="flex justify-end mb-4"><button onclick="togL()" class="border px-4 py-2 rounded text-sm font-bold bg-gray-100 shadow-sm">🌐 EN / AR</button></div>
-            <h1 id="in-title" class="text-2xl sm:text-3xl font-bold text-blue-900 mb-2">Title</h1>
-            <h3 id="in-res" class="text-md sm:text-lg font-bold text-gray-600 mb-6">Researchers</h3>
-            <p id="in-txt" class="text-gray-700 max-w-2xl mx-auto leading-relaxed mb-8 whitespace-pre-wrap text-sm sm:text-base">Text</p>
-            <button onclick="goTo('int'); strt();" class="w-full sm:w-auto px-8 py-4 rounded-full text-white font-bold shadow-lg text-lg transition hover:opacity-90" style="background-color: ${blueprint.theme.color};">Start Assessment</button>
-        </div>
-
-        <!-- Interview View -->
-        <div id="v-int" class="bg-white p-4 sm:p-6 rounded-xl shadow hidden border-t-4 border-green-600">
-            <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 border-b pb-4 gap-4">
-                <div><h2 id="s-title" class="text-xl sm:text-2xl font-bold text-gray-800">Title</h2><p id="s-prog" class="text-sm font-bold text-gray-500">Page 1</p></div>
-                <button onclick="togL()" class="border px-4 py-2 rounded text-sm font-bold bg-gray-100 shadow-sm self-end sm:self-auto">🌐 EN / AR</button>
-            </div>
-            <div id="id-con" class="mb-6 bg-blue-50 p-4 sm:p-6 rounded border border-blue-200">
-                <label class="block font-bold text-blue-900 mb-2">Participant ID <span class="text-red-500">*</span></label>
-                <input type="text" id="p-id" class="w-full p-3 border rounded font-mono text-lg shadow-inner" onkeyup="cId=this.value; svDrt();" placeholder="Enter ID...">
-            </div>
-            <div id="q-con" class="space-y-8 mb-8"></div>
-            <div class="flex justify-between border-t pt-6">
-                <button id="b-prv" onclick="prv()" class="px-6 py-3 bg-gray-300 text-gray-800 font-bold rounded hidden hover:bg-gray-400 transition">Previous</button>
-                <div class="flex-1"></div>
-                <button id="b-nxt" onclick="nxt()" class="px-8 py-3 text-white font-bold rounded shadow-md transition hover:opacity-90" style="background-color: ${blueprint.theme.color};">Next Page</button>
-                <button id="b-sav" onclick="sav()" class="px-8 py-3 bg-green-600 text-white font-bold rounded hidden shadow-md hover:bg-green-700 transition">Save Interview</button>
-            </div>
-        </div>
-        
-        <!-- Advanced Dashboard View -->
-        <div id="v-sam" class="bg-white p-4 sm:p-6 rounded-xl shadow hidden border-t-4 border-purple-600">
-            <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 gap-4 border-b pb-4">
-                <div>
-                    <h2 class="text-2xl font-bold text-gray-800">Researcher Dashboard</h2>
-                    <p class="text-sm text-gray-500 font-bold">Total Samples Collected: <span id="s-count" class="text-purple-600 text-lg">0</span></p>
-                </div>
-                <button onclick="exp()" class="w-full sm:w-auto bg-purple-600 text-white px-6 py-3 rounded font-bold shadow hover:bg-purple-700 transition">💾 Download Sync Packet</button>
-            </div>
-            <div class="border rounded bg-gray-50 shadow-inner overflow-hidden">
-                <div class="bg-gray-200 p-3 grid grid-cols-2 sm:grid-cols-4 font-bold text-xs text-gray-700 uppercase tracking-wider">
-                    <div class="col-span-1 sm:col-span-2">Participant ID</div>
-                    <div class="hidden sm:block">Date & Time</div>
-                    <div class="text-right">Actions</div>
-                </div>
-                <div id="s-lst" class="divide-y border-t max-h-[60vh] overflow-y-auto"></div>
-            </div>
-        </div>
-    </div>
-    
-    <scr`+`ipt>
-        function esc(s) { if(s===null||s===undefined)return''; return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;'); }
-        const bp = ${JSON.stringify(blueprint)}; 
-        const isOnlineMode = ${mode === 'online'};
-        const dKey = 'draft_' + bp.id;
-        const db = new Dexie("MasterHubDB_V17"); db.version(1).stores({ submissions: 'id, participantId, projectId, timestamp' });
-        
-        let p = 0, ans = {}, cL = 'en', cId = '', stT = 0, eId = null;
-        
-        // Draft Auto-Save Engine
-        function svDrt() { if(!eId) localStorage.setItem(dKey, JSON.stringify({ ans, cId, p, stT })); }
-        function clrDrt() { localStorage.removeItem(dKey); }
-        function chkDrt() { 
-            const d = localStorage.getItem(dKey); 
-            if(d && confirm("Crash Detected: An unsaved interview draft was found. Would you like to resume it?")) { 
-                const prs = JSON.parse(d); ans = prs.ans; cId = prs.cId; p = prs.p; stT = prs.stT || Date.now(); 
-                document.getElementById('p-id').value = cId; ren(); goTo('int'); return true; 
-            } else { clrDrt(); return false; }
+            document.getElementById('modal-analytics').classList.remove('hidden');
         }
 
-        function goTo(id) {
-            document.getElementById('v-intro').classList.add('hidden'); document.getElementById('v-int').classList.add('hidden'); document.getElementById('v-sam').classList.add('hidden');
-            if(id === 'intro') {
-                if(bp.intro && (bp.intro.title_en || bp.intro.title_ar)) {
-                    document.getElementById('v-intro').classList.remove('hidden');
-                    document.getElementById('in-title').innerText = bp.intro['title_'+cL] || '';
-                    document.getElementById('in-res').innerText = bp.intro['researchers_'+cL] || '';
-                    document.getElementById('in-txt').innerText = bp.intro['text_'+cL] || '';
-                } else { document.getElementById('v-int').classList.remove('hidden'); strt(); }
-            } else { document.getElementById('v-'+id).classList.remove('hidden'); }
+        async function backupLocal() {
+            const records = await syncManager.getAllData();
+            downloadFile(JSON.stringify(records, null, 2), 'local_backup.json', 'application/json');
         }
 
-        function strt() { 
-            if(p===0 && Object.keys(ans).length===0 && !eId) { 
-                stT = Date.now(); 
-                if(chkDrt()) return; 
-            } 
-            ren(); 
-        }
-        function togL() { cL = cL === 'en' ? 'ar' : 'en'; document.documentElement.dir = cL === 'ar' ? 'rtl' : 'ltr'; if(!document.getElementById('v-intro').classList.contains('hidden')) goTo('intro'); else ren(); }
-        
-        function isH(q) { if (!q.showIf || !q.showIf.vName) return false; return String(ans[q.showIf.vName]) !== String(q.showIf.value); }
-        function evL() { bp.sections[p].questions.forEach(q => { const el = document.getElementById('q-w-'+q.id); const h = isH(q); if(el) el.classList.toggle('hidden', h); if(h) delete ans[q.vName]; }); svDrt(); }
-        
-        function valPg() {
-            if (p===0 && cId.trim() === '') { alert('Participant ID is required.'); return false; }
-            for (let q of bp.sections[p].questions) {
-                if (isH(q)) continue; let v = ans[q.vName], isA = v !== undefined && v !== null && v !== '' && !(Array.isArray(v) && v.length === 0);
-                if (q.req && !isA) { alert('Required: '+q['text_'+cL]); return false; }
-                if (q.type === 'number' && isA) { if (q.min !== undefined && v < q.min) { alert(q['text_'+cL] + ' min is ' + q.min); return false; } if (q.max !== undefined && v > q.max) { alert(q['text_'+cL] + ' max is ' + q.max); return false; } if (q.lessThanVar && ans[q.lessThanVar] !== undefined && v >= ans[q.lessThanVar]) { alert(q['text_'+cL] + ' must be less than ' + q.lessThanVar); return false; } }
-            } return true;
-        }
-        
-        function cSc() { let sc = {}; bp.sections.forEach(sec => sec.questions.forEach(q => { if (q.scale && !['Unassigned','Demographics','Consent','Documentation'].includes(q.scale) && ['number','mcq','likert','scale10'].includes(q.type)) { if (!sc[q.scale]) sc[q.scale] = 0; if (ans[q.vName] && !isNaN(ans[q.vName])) sc[q.scale] += ans[q.vName]; } })); let m = "Live Clinical Summary:\\n"; for (const [k, v] of Object.entries(sc)) { m += \`- \${k} Score: \${v}\\n\`; } return Object.keys(sc).length > 0 ? m : null; }
-        
-        function iSig() { bp.sections[p].questions.filter(q=>q.type==='signature').forEach(q=>{ const c = document.getElementById('sig-'+q.id); if(!c) return; const x = c.getContext('2d'); let d = false; function gp(e) { const r = c.getBoundingClientRect(); return { x: (e.touches ? e.touches[0].clientX : e.clientX) - r.left, y: (e.touches ? e.touches[0].clientY : e.clientY) - r.top }; } function sD(e) { d = true; const po = gp(e); x.beginPath(); x.moveTo(po.x, po.y); e.preventDefault(); } function dr(e) { if (!d) return; const po = gp(e); x.lineTo(po.x, po.y); x.stroke(); e.preventDefault(); } function eD(e) { d = false; ans[q.vName] = c.toDataURL(); svDrt(); e.preventDefault(); } c.addEventListener('mousedown',sD); c.addEventListener('mousemove',dr); c.addEventListener('mouseup',eD); c.addEventListener('mouseout',eD); c.addEventListener('touchstart',sD); c.addEventListener('touchmove',dr); c.addEventListener('touchend',eD); }); }
-        window.cSig = function(id, vN) { const c = document.getElementById('sig-'+id); if(c) { c.getContext('2d').clearRect(0,0,c.width,c.height); delete ans[vN]; svDrt(); } }
-        
-        function ren() {
-            let s = bp.sections[p]; document.getElementById('s-title').innerText = s['title_'+cL]; document.getElementById('s-prog').innerText = 'Page '+(p+1)+' of '+bp.sections.length;
-            document.getElementById('id-con').classList.toggle('hidden', p !== 0);
-            if(p===0) document.getElementById('p-id').value = cId;
-            
-            document.getElementById('q-con').innerHTML = s.questions.map(q => {
-                let inp = '', rs = q.req ? '<span class="text-red-500 font-bold">*</span>' : '';
-                if(q.type === 'number') inp = '<input type="number" class="w-full p-4 border rounded shadow-sm text-lg" onchange="ans[\\''+q.vName+'\\']=Number(this.value); evL();" value="'+(ans[q.vName]||'')+'">';
-                if(q.type === 'text') inp = '<textarea class="w-full p-4 border rounded shadow-sm text-lg min-h-[100px]" onchange="ans[\\''+q.vName+'\\']=this.value; evL();">'+(ans[q.vName]||'')+'</textarea>';
-                if(q.type === 'binary' || q.type === 'mcq') inp = '<div class="space-y-3">' + (q.options||[]).map(o => '<label class="flex items-center space-x-4 p-4 border rounded cursor-pointer hover:bg-gray-50 transition min-h-[50px]"><input type="radio" name="'+q.id+'" value="'+o.value+'" onchange="ans[\\''+q.vName+'\\']=Number(this.value); evL();" '+(ans[q.vName]===o.value?'checked':'')+' class="w-6 h-6 text-blue-600"> <span class="text-lg">'+esc(o['label_'+cL])+'</span></label>').join('') + '</div>';
-                if(q.type === 'checkbox') inp = '<div class="space-y-3">' + (q.options||[]).map(o => '<label class="flex items-center space-x-4 p-4 border rounded cursor-pointer hover:bg-gray-50 transition min-h-[50px]"><input type="checkbox" value="'+o.value+'" onchange="if(!ans[\\''+q.vName+'\\']) ans[\\''+q.vName+'\\']=[]; if(this.checked) ans[\\''+q.vName+'\\'].push(Number(this.value)); else ans[\\''+q.vName+'\\']=ans[\\''+q.vName+'\\'].filter(x=>x!==Number(this.value)); evL();" '+((ans[q.vName]||[]).includes(o.value)?'checked':'')+' class="w-6 h-6 text-blue-600"> <span class="text-lg">'+esc(o['label_'+cL])+'</span></label>').join('') + '</div>';
-                if(q.type === 'likert') inp = '<div class="flex overflow-x-auto justify-between gap-2 bg-gray-50 p-4 rounded border">' + (q.options||[]).map(o => '<label class="flex flex-col items-center flex-1 text-center cursor-pointer min-w-[70px]"><input type="radio" name="'+q.id+'" value="'+o.value+'" onchange="ans[\\''+q.vName+'\\']=Number(this.value); evL();" '+(ans[q.vName]===o.value?'checked':'')+' class="w-6 h-6 mb-3 text-blue-600"> <span class="text-sm font-semibold break-words">'+esc(o['label_'+cL])+'</span></label>').join('') + '</div>';
-                if(q.type === 'scale10') inp = '<div class="flex overflow-x-auto justify-between gap-1 bg-gray-50 p-4 rounded border">' + [1,2,3,4,5,6,7,8,9,10].map(n => '<label class="flex flex-col items-center flex-1 cursor-pointer min-w-[45px]"><input type="radio" name="'+q.id+'" value="'+n+'" onchange="ans[\\''+q.vName+'\\']=Number(this.value); evL();" '+(ans[q.vName]===n?'checked':'')+' class="w-6 h-6 mb-3 text-blue-600"> <span class="text-base font-bold text-gray-700">'+n+'</span></label>').join('') + '</div>';
-                if(q.type === 'signature') inp = '<div class="border-2 border-dashed border-gray-400 rounded bg-gray-50 p-2"><canvas id="sig-'+q.id+'" width="400" height="150" class="w-full bg-white border cursor-crosshair touch-none" style="max-width:100%;"></canvas><div class="flex justify-end mt-2"><button type="button" onclick="cSig(\\''+q.id+'\\', \\''+q.vName+'\\')" class="text-sm font-bold bg-red-100 text-red-600 px-4 py-2 rounded">Clear Signature</button></div></div>';
-                if(q.type === 'camera') inp = '<div class="p-6 border-2 border-dashed border-gray-400 rounded bg-gray-50 text-center"><input type="file" accept="image/*" capture="environment" onchange="const f=this.files[0]; const r=new FileReader(); r.onload=e=>{ans[\\''+q.vName+'\\']=e.target.result; evL();}; if(f) r.readAsDataURL(f);" class="text-base w-full"></div>';
-                return '<div id="q-w-'+q.id+'" class="mb-6 bg-white p-2 rounded '+(isH(q)?'hidden':'')+'"><label class="block font-bold text-xl mb-4 text-gray-800">'+esc(q['text_'+cL])+' '+rs+'</label>'+inp+'</div>';
-            }).join('');
-            document.getElementById('b-prv').classList.toggle('hidden', p === 0); document.getElementById('b-nxt').classList.toggle('hidden', p === bp.sections.length - 1); document.getElementById('b-sav').classList.toggle('hidden', p !== bp.sections.length - 1); iSig();
-        }
-        function nxt() { if(valPg()){ p++; ren(); svDrt(); window.scrollTo(0,0); } } 
-        function prv() { p--; ren(); svDrt(); window.scrollTo(0,0); }
-        
-        async function sav() { 
-            if(!valPg()) return; 
-            if(!ans._duration_sec) ans._duration_sec = Math.round((Date.now() - stT) / 1000); 
-            
-            const record = { 
-                id: eId ? eId : crypto.randomUUID(), 
-                participantId: cId, 
-                projectId: bp.id, 
-                timestamp: eId ? (ans._origTime || Date.now()) : Date.now(), 
-                answers: ans 
+        async function importOfflineData(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+            const reader = new FileReader();
+            reader.onload = async (e) => {
+                try {
+                    const data = JSON.parse(e.target.result);
+                    if (Array.isArray(data)) {
+                        for (const rec of data) {
+                            await syncManager.queueData(rec.payload || rec);
+                        }
+                        await syncManager.processQueue();
+                        alert('Data imported successfully!');
+                        renderMasterHubTable();
+                    }
+                } catch (err) { alert('Invalid data file.'); }
             };
-            
-            let postedOnline = false;
-            let syncNotice = "";
-
-            if (isOnlineMode && navigator.onLine) {
-                if (bp.cloud?.url) {
-                    try {
-                        const res = await fetch(bp.cloud.url, {
-                            method: 'POST',
-                            headers: { 'Content-Type': 'application/json', 'apikey': bp.cloud.key || '', 'Authorization': 'Bearer ' + (bp.cloud.key || ''), 'Prefer': 'resolution=merge-duplicates' },
-                            body: JSON.stringify(record)
-                        });
-                        if (res.ok) { postedOnline = true; syncNotice += "\\n✅ Synced to Supabase"; }
-                    } catch(e) { console.log('Supabase sync failed.'); }
-                }
-
-                if (bp.cloud?.sheetUrl) {
-                    try {
-                        fetch(bp.cloud.sheetUrl, {
-                            method: 'POST',
-                            mode: 'no-cors',
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify(record)
-                        });
-                        syncNotice += "\\n✅ Fired to Google Sheets";
-                    } catch(e) { console.log('Google Sheets sync failed.'); }
-                }
-            }
-
-            if(!postedOnline && !syncNotice) { syncNotice = "\\n⚠️ Saved Locally (Offline)"; }
-
-            await db.submissions.put(record); 
-            clrDrt(); 
-            
-            const ls = cSc(); 
-            if(ls) alert(ls + syncNotice); else alert("Saved Successfully." + syncNotice); 
-            
-            ans = {}; cId = ''; document.getElementById('p-id').value = ''; p = 0; eId = null; goTo('intro'); 
+            reader.readAsText(file);
         }
 
-        function checkPin() { const code = prompt('Enter Security PIN to access Dashboard:'); if(code === bp.pin) { goTo('sam'); lSam(); } else if (code !== null) alert('Access Denied: Incorrect PIN'); }
-        
-        async function lSam() { 
-            const d = await db.submissions.where({projectId: bp.id}).reverse().sortBy('timestamp'); 
-            document.getElementById('s-count').innerText = d.length;
-            document.getElementById('s-lst').innerHTML = d.length === 0 ? '<div class="p-8 text-center text-gray-500 font-bold">No samples collected yet.</div>' : d.map(x => `
-                <div class="p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 hover:bg-gray-100 transition">
-                    <div class="flex-1 flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-4 w-full">
-                        <span class="font-bold text-blue-800 text-lg sm:w-1/3 truncate">${esc(x.participantId)}</span>
-                        <span class="text-sm text-gray-500 font-mono">${new Date(x.timestamp).toLocaleString()}</span>
-                    </div>
-                    <div class="flex gap-2 self-end sm:self-auto">
-                        <button onclick="editSam('${x.id}')" class="bg-yellow-500 text-white px-4 py-2 rounded font-bold shadow-sm hover:bg-yellow-600 text-sm">Edit</button>
-                        <button onclick="delSam('${x.id}')" class="bg-red-100 text-red-600 px-4 py-2 rounded font-bold shadow-sm hover:bg-red-200 text-sm">Delete</button>
-                    </div>
-                </div>
-            `).join(''); 
-        }
-        
-        async function delSam(id) {
-            if(confirm("Permanently delete this participant's record?")) {
-                await db.submissions.delete(id); lSam();
-            }
+        function downloadFile(content, fileName, mimeType) {
+            const blob = new Blob([content], { type: mimeType });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url; a.download = fileName;
+            document.body.appendChild(a); a.click();
+            document.body.removeChild(a); URL.revokeObjectURL(url);
         }
 
-        async function editSam(id) {
-            const code = prompt('Enter Security PIN to Edit Data:');
-            if(code !== bp.pin) return alert('Access Denied');
-            const rec = await db.submissions.get(id);
-            if(rec) {
-                ans = rec.answers; 
-                ans._origTime = rec.timestamp; 
-                cId = rec.participantId; 
-                eId = rec.id; 
-                p = 0; 
-                goTo('int'); 
-                ren();
-            }
-        }
-
-        async function exp() { const d = await db.submissions.where({projectId: bp.id}).toArray(); const l = document.createElement('a'); l.href = URL.createObjectURL(new Blob([JSON.stringify({ data: d }, null, 2)], { type: 'application/json' })); l.download = 'field_sync_'+Date.now()+'.json'; l.click(); }
-        
-        goTo('intro');
-    </scr`+`ipt>
-</body></html>
+        // ==========================================
+        // 8. INITIAL LOAD
+        // ==========================================
+        window.addEventListener('DOMContentLoaded', () => {
+            const saved = localStorage.getItem('clinical_project_state');
+            if (saved) {
+               
