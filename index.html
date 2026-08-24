@@ -1,3 +1,4 @@
+```html
 <!DOCTYPE html>
 <html lang="en" dir="ltr">
 <head>
@@ -174,6 +175,17 @@
             cursor: crosshair;
             touch-action: none;
         }
+        /* ═══ LIKERT BATCH GENERATOR ═══ */
+        .lbg-box{border:2px solid var(--theme-color);border-radius:8px;padding:16px;margin-bottom:16px;background:#f8fafc}
+        .lbg-box h3{margin:0 0 12px 0;font-size:16px;color:var(--theme-color)}
+        .lbg-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin-bottom:12px}
+        .lbg-grid label{display:flex;flex-direction:column;gap:4px;font-size:12px;font-weight:600;color:#445}
+        .lbg-grid input,.lbg-grid select{padding:8px;border:1px solid #cbd5e1;border-radius:6px;font-size:13px}
+        .lbg-table{width:100%;border-collapse:collapse;background:white;font-size:11px;margin-top:10px}
+        .lbg-table th,.lbg-table td{border:1px solid #e2e8f0;padding:4px 6px;text-align:center}
+        .lbg-table th{background:var(--theme-color);color:white;font-weight:600}
+        .lbg-table td.qname{text-align:left;font-weight:600;background:#f1f5f9}
+        .lbg-table .score{color:var(--theme-color);font-weight:700}
     </style>
     <base target="_blank">
 </head>
@@ -294,6 +306,50 @@
                     <h2 class="text-lg font-semibold text-primary">Instrument Structure</h2>
                     <button onclick="addNewPage()" class="btn-primary px-4 py-2 rounded-md text-sm">+ Add New Page</button>
                 </div>
+                
+                <!-- ═══ LIKERT BATCH GENERATOR ═══ -->
+                <div class="lbg-box" id="likertBatchGen">
+                    <h3>⚡ Likert Batch Generator <span style="font-weight:normal;font-size:12px;color:#666;">(Word-style table insertion — set numbers → auto-generate items)</span></h3>
+                    <div class="lbg-grid">
+                        <label>Number of Questions
+                            <input type="number" id="lbgCount" min="1" max="200" value="5">
+                        </label>
+                        <label>Scale Points
+                            <select id="lbgPoints">
+                                <option value="3">3-Point</option>
+                                <option value="4">4-Point</option>
+                                <option value="5" selected>5-Point</option>
+                                <option value="6">6-Point</option>
+                                <option value="7">7-Point</option>
+                            </select>
+                        </label>
+                        <label>Scoring Starts At
+                            <input type="number" id="lbgStart" value="1">
+                        </label>
+                        <label>Scoring Direction
+                            <select id="lbgDirection">
+                                <option value="asc" selected>Ascending (left = lowest score)</option>
+                                <option value="desc">Descending / Reversed (left = highest score)</option>
+                            </select>
+                        </label>
+                        <label>Point Labels
+                            <select id="lbgLabels">
+                                <option value="all" selected>Verbal (Strongly Disagree … Strongly Agree)</option>
+                                <option value="numbers">Numbers only (1 2 3 4 5)</option>
+                                <option value="endpoints">Verbal on endpoints only</option>
+                            </select>
+                        </label>
+                        <label>Question Text Prefix
+                            <input type="text" id="lbgPrefix" value="Item">
+                        </label>
+                        <label>Target Page
+                            <select id="lbgTargetPage"></select>
+                        </label>
+                    </div>
+                    <div id="lbgPreview"></div>
+                    <button type="button" class="btn-primary px-4 py-2 rounded-md text-sm font-bold" onclick="lbgGenerate()">⚡ Generate Items Into Builder</button>
+                </div>
+                
                 <div id="builder-pages-container" class="space-y-4">
                     <!-- Pages injected here -->
                 </div>
@@ -2167,6 +2223,113 @@
         }
 
         // ==========================================
+        // 16. LIKERT BATCH GENERATOR (WORD-STYLE TABLE)
+        // ==========================================
+        const LBG_VERBAL = {
+            3: ["Disagree","Neutral","Agree"],
+            4: ["Strongly Disagree","Disagree","Agree","Strongly Agree"],
+            5: ["Strongly Disagree","Disagree","Neutral","Agree","Strongly Agree"],
+            6: ["Strongly Disagree","Disagree","Somewhat Disagree","Somewhat Agree","Agree","Strongly Agree"],
+            7: ["Strongly Disagree","Disagree","Somewhat Disagree","Neutral","Somewhat Agree","Agree","Strongly Agree"]
+        };
+        const LBG_VERBAL_AR = {
+            3: ["أرفض","محايد","أوافق"],
+            4: ["أرفض بشدة","أرفض","أوافق","أوافق بشدة"],
+            5: ["أرفض بشدة","أرفض","محايد","أوافق","أوافق بشدة"],
+            6: ["أرفض بشدة","أرفض","أرفض نوعاً ما","أوافق نوعاً ما","أوافق","أوافق بشدة"],
+            7: ["أرفض بشدة","أرفض","أرفض نوعاً ما","محايد","أوافق نوعاً ما","أوافق","أوافق بشدة"]
+        };
+
+        function lbgRead(){
+            const points = parseInt(document.getElementById('lbgPoints').value,10) || 5;
+            const start  = parseInt(document.getElementById('lbgStart').value,10);
+            const desc   = document.getElementById('lbgDirection').value === 'desc';
+            const mode   = document.getElementById('lbgLabels').value;
+            const verbal = LBG_VERBAL[points] || [];
+            const verbalAr = LBG_VERBAL_AR[points] || [];
+            const options = [];
+            for(let p = 0; p < points; p++){
+                const score = desc ? (start + points - 1 - p) : (start + p);
+                let labelEn, labelAr;
+                if(mode === 'numbers'){ labelEn = String(score); labelAr = String(score); }
+                else if(mode === 'endpoints' && p !== 0 && p !== points-1){ labelEn = String(score); labelAr = String(score); }
+                else { 
+                    labelEn = verbal[p] || String(score); 
+                    labelAr = verbalAr[p] || verbal[p] || String(score); 
+                }
+                options.push({ label_en: labelEn, label_ar: labelAr, value: score });
+            }
+            return {
+                count : Math.max(1, Math.min(200, parseInt(document.getElementById('lbgCount').value,10) || 5)),
+                prefix: (document.getElementById('lbgPrefix').value || 'Item').trim() || 'Item',
+                target: parseInt(document.getElementById('lbgTargetPage').value,10) || 0,
+                options
+            };
+        }
+
+        function lbgRenderPreview(){
+            const {count, prefix, options} = lbgRead();
+            let h = '<div style="font-size:11px;color:#667;margin:6px 0 4px;">Preview — ' + count + ' items × ' + options.length + '-point scale (cell shows assigned score):</div><table class="lbg-table"><tr><th>Question</th>';
+            options.forEach(o => h += '<th>' + esc(o.label_en) + ' <span style="opacity:.7">[' + o.value + ']</span></th>');
+            h += '</tr>';
+            const rows = Math.min(count, 6);
+            for(let i = 1; i <= rows; i++){
+                h += '<tr><td class="qname">' + esc(prefix) + ' ' + i + '</td>';
+                options.forEach(o => h += '<td><span class="score">' + o.value + '</span></td>');
+                h += '</tr>';
+            }
+            if(count > rows) h += '<tr><td class="qname">…</td>' + options.map(()=>'<td>…</td>').join('') + '</tr>';
+            document.getElementById('lbgPreview').innerHTML = h + '</table>';
+        }
+
+        function lbgUpdateTargetPages(){
+            const sel = document.getElementById('lbgTargetPage');
+            if(!sel) return;
+            sel.innerHTML = '';
+            appState.project.pages.forEach(function(p, i){
+                const opt = document.createElement('option');
+                opt.value = i;
+                opt.textContent = (p.title_en || 'Page ' + (i+1));
+                sel.appendChild(opt);
+            });
+        }
+
+        function lbgGenerate(){
+            const {count, prefix, target, options} = lbgRead();
+            const page = appState.project.pages[target];
+            if(!page) { alert('Target page not found.'); return; }
+            for(let i = 1; i <= count; i++){
+                page.items.push({
+                    id: 'item_' + Date.now() + '_' + i,
+                    vName: formatSPSS(prefix.replace(/\s+/g,'_') + '_' + i),
+                    type: 'likert',
+                    title_en: prefix + ' ' + i,
+                    title_ar: prefix + ' ' + i,
+                    scale: 'Unassigned',
+                    req: false,
+                    options: JSON.parse(JSON.stringify(options))
+                });
+            }
+            renderBuilderPages();
+            showToast('✅ Generated ' + count + ' Likert items into ' + (page.title_en || 'Page'), 'success');
+        }
+
+        // Hook into existing render to keep preview & target page dropdown updated
+        const _origRenderBuilderPages = renderBuilderPages;
+        renderBuilderPages = function(){
+            _origRenderBuilderPages();
+            lbgUpdateTargetPages();
+            lbgRenderPreview();
+        };
+
+        // Live preview on input change inside the generator box
+        document.addEventListener('change', function(e){
+            if(e.target && e.target.closest && e.target.closest('#likertBatchGen')){
+                lbgRenderPreview();
+            }
+        });
+
+        // ==========================================
         // 15. INITIAL LOAD
         // ==========================================
         window.addEventListener('DOMContentLoaded', function() {
@@ -2200,3 +2363,4 @@
     </script>
 </body>
 </html>
+```
