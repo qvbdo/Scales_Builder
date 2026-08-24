@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Clinical Data Dashboard - Hardcoded Config Edition</title>
+    <title>Clinical Data Dashboard - Ultimate Config Edition</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/dexie/dist/dexie.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
@@ -14,8 +14,8 @@
         <!-- Header -->
         <div class="flex justify-between items-center mb-8 bg-white p-4 rounded-xl shadow-sm border-t-4 border-gray-800">
             <div>
-                <h1 class="text-2xl font-bold text-gray-800">Research Platform v17.6</h1>
-                <p class="text-xs text-gray-500 font-bold uppercase tracking-wider">Dual Sync + Hardcoded Master Config</p>
+                <h1 class="text-2xl font-bold text-gray-800">Research Platform v17.7</h1>
+                <p class="text-xs text-gray-500 font-bold uppercase tracking-wider">Strict Config Override Active</p>
             </div>
             <div class="flex gap-2">
                 <button onclick="switchView('builder')" id="btn-builder" class="bg-blue-600 text-white px-4 py-2 rounded font-bold shadow transition">1. Builder</button>
@@ -55,7 +55,7 @@
 
                 <!-- Cloud Database Credentials Setup -->
                 <div class="bg-indigo-50 p-4 rounded-lg border border-indigo-100 flex flex-col gap-3">
-                    <span class="text-xs font-bold text-indigo-900 uppercase tracking-wider border-b border-indigo-200 pb-2">Cloud Backend Config (Auto-Filled from Source Code):</span>
+                    <span class="text-xs font-bold text-indigo-900 uppercase tracking-wider border-b border-indigo-200 pb-2">Cloud Backend Config (Locked to Master Config):</span>
                     
                     <div class="flex flex-wrap gap-4 items-center">
                         <label class="text-sm font-bold text-indigo-800 w-32">Supabase Sync:</label>
@@ -65,7 +65,7 @@
                     
                     <div class="flex flex-wrap gap-4 items-center mt-2">
                         <label class="text-sm font-bold text-green-800 w-32">Google Sheet URL:</label>
-                        <input type="text" id="sheet-url" onchange="if(!blueprint.cloud) blueprint.cloud = {}; blueprint.cloud.sheetUrl = this.value" placeholder="Google Apps Script Web App URL" class="flex-1 p-2 border border-green-300 bg-green-50 rounded text-xs font-mono">
+                        <input type="text" id="sheet-url" onchange="if(!blueprint.cloud) blueprint.cloud = {}; blueprint.cloud.sheetUrl = this.value" placeholder="Google Apps Script Web App URL" class="flex-1 p-2 border border-green-300 bg-green-50 rounded text-xs font-mono bg-gray-100">
                     </div>
                 </div>
             </div>
@@ -171,18 +171,16 @@
         </div>
     </div>
 
-   // =====================================================================
-        // 🔒 MASTER CONFIGURATION (HARDCODED)
-        // Paste your URLs and Keys between the quotes below before uploading to GitHub.
-        // Once pasted here, the app will never forget them.
+    <script>
+        // =====================================================================
+        // 🔒 MASTER CONFIGURATION (HARDCODED & INJECTED)
         // =====================================================================
         const MASTER_CONFIG = {
-            supabaseUrl: "https://racgtsqekgvbvghnkkla.supabase.co/rest/v1/submissions", 
-            supabaseKey: "sb_publishable_Vt2kmf7OvA7wZHf4Hl5DXQ_clesdbgB", 
-            googleSheetUrl: "https://script.google.com/macros/s/AKfycbyXU4DhqtU8AxYHoMAe4DpwUnTLiJ5vabKlhGKiLXP2V2U71r8VuPhAbagQGikqA8h6ow/exec" 
+            supabaseUrl: "https://racgtsqekgvbvghnkkla.supabase.co/rest/v1/submissions",
+            supabaseKey: "sb_publishable_Vt2kmf7OvA7wZHf4Hl5DXQ_clesdbgB",
+            googleSheetUrl: "https://script.google.com/macros/s/AKfycbyXU4DhqtU8AxYHoMAe4DpwUnTLiJ5vabKlhGKiLXP2V2U71r8VuPhAbagQGikqA8h6ow/exec"
         };
         // =====================================================================
-
 
         const db = new Dexie("MasterHubDB_V17");
         db.version(1).stores({ 
@@ -201,7 +199,6 @@
         let blueprint = generateBlankBlueprint();
 
         function generateBlankBlueprint() {
-            // Pulls directly from the MASTER_CONFIG above, ignoring local storage
             return {
                 id: 'proj_' + Date.now(),
                 name: 'Psychiatric Nursing Curricula',
@@ -294,15 +291,19 @@
             document.getElementById('theme-color').value = blueprint.theme.color;
             document.getElementById('app-pin').value = blueprint.pin;
             
-            // If the loaded blueprint is missing keys, inject them from MASTER_CONFIG automatically
+            // STRICT OVERRIDE: Always force the input boxes to use the MASTER_CONFIG
+            const finalUrl = MASTER_CONFIG.supabaseUrl;
+            const finalKey = MASTER_CONFIG.supabaseKey;
+            const finalSheet = MASTER_CONFIG.googleSheetUrl;
+            
+            document.getElementById('cloud-url').value = finalUrl;
+            document.getElementById('cloud-key').value = finalKey;
+            document.getElementById('sheet-url').value = finalSheet;
+            
             if(!blueprint.cloud) blueprint.cloud = {};
-            if(!blueprint.cloud.url) blueprint.cloud.url = MASTER_CONFIG.supabaseUrl;
-            if(!blueprint.cloud.key) blueprint.cloud.key = MASTER_CONFIG.supabaseKey;
-            if(!blueprint.cloud.sheetUrl) blueprint.cloud.sheetUrl = MASTER_CONFIG.googleSheetUrl;
-
-            document.getElementById('cloud-url').value = blueprint.cloud.url;
-            document.getElementById('cloud-key').value = blueprint.cloud.key;
-            document.getElementById('sheet-url').value = blueprint.cloud.sheetUrl;
+            blueprint.cloud.url = finalUrl;
+            blueprint.cloud.key = finalKey;
+            blueprint.cloud.sheetUrl = finalSheet;
 
             document.getElementById('intro-title-en').value = blueprint.intro?.title_en || '';
             document.getElementById('intro-res-en').value = blueprint.intro?.researchers_en || '';
@@ -785,13 +786,4 @@
         
         goTo('intro');
     </scr`+`ipt>
-</body></html>`;
-
-            const filename = mode === 'online' ? `live_online_${blueprint.name.replace(/\s/g,'_')}.html` : `offline_collector_${blueprint.name.replace(/\s/g,'_')}.html`;
-            const link = document.createElement('a'); link.href = URL.createObjectURL(new Blob([tmpl], { type: 'text/html' })); link.download = filename; link.click();
-        }
-
-        initBuilderUI();
-    </script>
-</body>
-</html>
+</body></html>
