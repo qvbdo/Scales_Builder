@@ -2100,12 +2100,12 @@
             reader.readAsText(file);
         }
 
-        // ==========================================
-        // 14. EXPORT STANDALONE APPS
+                // ==========================================
+        // 14. EXPORT STANDALONE APPS (FIXED: CDN-PROOF)
         // ==========================================
         function exportOfflineApp() {
             saveProject();
-            const stateStr = JSON.stringify(appState).replace(/</g, '\u003c');
+            const stateStr = JSON.stringify(appState).replace(/</g, '\\u003c');
             const standalone = buildStandaloneApp(stateStr, false);
             downloadFile(standalone, appState.project.name.replace(/\s/g, '_') + '_Offline.html', 'text/html');
             showToast('Offline app exported!', 'success');
@@ -2113,7 +2113,7 @@
 
         function exportOnlineApp() {
             saveProject();
-            const stateStr = JSON.stringify(appState).replace(/</g, '\u003c');
+            const stateStr = JSON.stringify(appState).replace(/</g, '\\u003c');
             const standalone = buildStandaloneApp(stateStr, true);
             downloadFile(standalone, appState.project.name.replace(/\s/g, '_') + '_Online.html', 'text/html');
             showToast('Online app exported!', 'success');
@@ -2139,6 +2139,21 @@
         .sync-dot-synced{background:#10b981}
         .sync-dot-failed{background:#ef4444}
         @keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
+        /* Fallback layout so the app still works if Tailwind CDN fails */
+        .hidden{display:none!important}
+        body{margin:0;font-family:'Segoe UI',Tahoma,sans-serif;background:#f9fafb;color:#1f2937}
+        .max-w-3xl{max-width:48rem;margin:0 auto}
+        .bg-white{background:#fff}.p-2{padding:.5rem}.p-4{padding:1rem}.p-6{padding:1.5rem}.p-8{padding:2rem}
+        .rounded,.rounded-lg{border-radius:.5rem}.shadow{box-shadow:0 1px 3px rgba(0,0,0,.15)}
+        .mb-3{margin-bottom:.75rem}.mb-4{margin-bottom:1rem}.mb-6{margin-bottom:1.5rem}.mt-2{margin-top:.5rem}
+        .flex{display:flex}.justify-between{justify-content:space-between}.items-center{align-items:center}
+        .gap-2{gap:.5rem}.flex-1{flex:1}.justify-end{justify-content:flex-end}
+        .space-y-2>*+*{margin-top:.5rem}.space-y-6>*+*{margin-top:1.5rem}
+        button{cursor:pointer;border:0;border-radius:.375rem;padding:.5rem 1rem;font-weight:700}
+        input,textarea{border:1px solid #d1d5db;border-radius:.375rem;padding:.5rem;width:100%;box-sizing:border-box}
+        label{margin-bottom:.5rem}
+        .text-red-500{color:#ef4444}.text-sm{font-size:.875rem}.text-xs{font-size:.75rem}
+        .font-bold{font-weight:700}.text-center{text-align:center}
         <\/style>
         <\/head>
         <body class="bg-gray-50 font-sans p-4" style="font-family:${appState.project.font}">
@@ -2190,15 +2205,28 @@
         <\/div>
         <\/div>
         <script>
-        const proj = ${stateStr}.project;
-        const isOnlineMode = ${isOnline ? 'true' : 'false'};
-        const db = new Dexie("CollectorDB"); db.version(1).stores({submissions:'id',syncQueue:'id'});
-        let pg = 0, ans = {}, lang = 'en', pid = '', st = 0, charts = [];
+        var proj = ${stateStr}.project;
+        var isOnlineMode = ${isOnline ? 'true' : 'false'};
+
+        /* Storage layer: Dexie if the CDN loaded, otherwise localStorage fallback (never crashes) */
+        var db = null;
+        try { if (window.Dexie) { db = new Dexie("CollectorDB"); db.version(1).stores({submissions:'id',syncQueue:'id'}); } } catch(e) { db = null; }
+        function _lsGet(k){ try { return JSON.parse(localStorage.getItem(k) || '[]'); } catch(e) { return []; } }
+        function _lsSet(k,v){ try { localStorage.setItem(k, JSON.stringify(v)); } catch(e) {} }
+        function subPut(r){ if(db) return db.submissions.put(r); var a=_lsGet('c_sub').filter(function(x){return x.id!==r.id}); a.push(r); _lsSet('c_sub',a); return Promise.resolve(); }
+        function subGet(id){ if(db) return db.submissions.get(id); return Promise.resolve(_lsGet('c_sub').find(function(x){return x.id===id})); }
+        function subDel(id){ if(db) return db.submissions.delete(id); _lsSet('c_sub',_lsGet('c_sub').filter(function(x){return x.id!==id})); return Promise.resolve(); }
+        function subAll(){ if(db) return db.submissions.toArray(); return Promise.resolve(_lsGet('c_sub')); }
+        function qPut(r){ if(db) return db.syncQueue.put(r); var a=_lsGet('c_queue').filter(function(x){return x.id!==r.id}); a.push(r); _lsSet('c_queue',a); return Promise.resolve(); }
+        function qDel(id){ if(db) return db.syncQueue.delete(id); _lsSet('c_queue',_lsGet('c_queue').filter(function(x){return x.id!==id})); return Promise.resolve(); }
+        function qAll(){ if(db) return db.syncQueue.toArray(); return Promise.resolve(_lsGet('c_queue')); }
+
+        var pg = 0, ans = {}, lang = 'en', pid = '', st = 0;
         function esc(s){return s==null?'':String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')}
         function toast(msg,type){var t=document.createElement('div');t.className='toast toast-'+type;t.textContent=msg;document.body.appendChild(t);setTimeout(function(){t.classList.add('show')},10);setTimeout(function(){t.classList.remove('show');setTimeout(function(){t.remove()},300)},3000)}
         function updConn(){var d=document.getElementById('conn-dot'),x=document.getElementById('conn-text');if(navigator.onLine){d.className='sync-indicator sync-dot-synced';x.textContent='Online'}else{d.className='sync-indicator sync-dot-failed';x.textContent='Offline'}}
-        window.addEventListener('online',function(){updConn();if(isOnlineMode)processQueue()});window.addEventListener('offline',updConn);updConn();
-        async function processQueue(){if(!navigator.onLine||!isOnlineMode)return;var pending=await db.syncQueue.toArray();if(pending.length===0)return;toast('Syncing '+pending.length+'...','info');for(var rec of pending){try{var r=await fetch(proj.googleUrl,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(rec)});var j=await r.json();if(j.success||r.ok){rec._syncStatus='synced';await db.submissions.put(rec);await db.syncQueue.delete(rec.id)}}catch(e){}}updDash();}
+        window.addEventListener('online',function(){updConn();if(isOnlineMode)processQueue()});window.addEventListener('offline',updConn);
+        async function processQueue(){if(!navigator.onLine||!isOnlineMode)return;var pending=await qAll();if(pending.length===0)return;toast('Syncing '+pending.length+'...','info');for(var rec of pending){try{var r=await fetch(proj.googleUrl,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(rec)});var j=await r.json();if(j.success||r.ok){rec._syncStatus='synced';await subPut(rec);await qDel(rec.id)}}catch(e){}}updDash();}
         function goTo(id){['intro','int','dash'].forEach(function(x){document.getElementById('v-'+x).classList.add('hidden')});document.getElementById('v-'+id).classList.remove('hidden');if(id==='intro'){var l=proj[lang];document.getElementById('in-title').textContent=l.title||'';document.getElementById('in-authors').textContent=l.authors||'';document.getElementById('in-welcome').textContent=l.welcome||''}}
         function startInt(){pg=0;st=Date.now();ren()}
         function togL(){lang=lang==='en'?'ar':'en';document.documentElement.dir=lang==='ar'?'rtl':'ltr';if(!document.getElementById('v-intro').classList.contains('hidden'))goTo('intro');else ren()}
@@ -2209,14 +2237,17 @@
         function nxt(){if(val()){pg++;ren();window.scrollTo(0,0)}}function prv(){pg--;ren();window.scrollTo(0,0)}
         function initSigs(){proj.pages[pg].items.filter(function(q){return q.type==='signature'}).forEach(function(q){var c=document.getElementById('sig-'+q.id);if(!c)return;var x=c.getContext('2d'),d=false;function gp(e){var r=c.getBoundingClientRect();return{x:(e.touches?e.touches[0].clientX:e.clientX)-r.left,y:(e.touches?e.touches[0].clientY:e.clientY)-r.top}}function sd(e){d=true;var p=gp(e);x.beginPath();x.moveTo(p.x,p.y);e.preventDefault()}function dr(e){if(!d)return;var p=gp(e);x.lineTo(p.x,p.y);x.stroke();e.preventDefault()}function ed(e){d=false;ans[q.vName||q.id]=c.toDataURL();e.preventDefault()}c.addEventListener('mousedown',sd);c.addEventListener('mousemove',dr);c.addEventListener('mouseup',ed);c.addEventListener('mouseout',ed);c.addEventListener('touchstart',sd);c.addEventListener('touchmove',dr);c.addEventListener('touchend',ed)})}
         window.cls=function(id,vn){var c=document.getElementById('sig-'+id);if(c){c.getContext('2d').clearRect(0,0,c.width,c.height);delete ans[vn]}}
-        async function sav(){if(!val())return;ans._duration_sec=Math.round((Date.now()-st)/1000);var rec={id:crypto.randomUUID?crypto.randomUUID():'rec_'+Date.now(),participantId:pid,projectId:proj.id,timestamp:Date.now(),answers:ans,_syncStatus:'pending'};await db.submissions.put(rec);if(isOnlineMode&&navigator.onLine&&proj.googleUrl){try{await fetch(proj.googleUrl,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(rec)});rec._syncStatus='synced';await db.submissions.put(rec);toast('Saved & synced!','success')}catch(e){await db.syncQueue.put(rec);toast('Saved locally. Will sync.','warning')}}else{toast('Saved locally.','success')}ans={};pid='';document.getElementById('p-id').value='';pg=0;goTo('intro')}
+        async function sav(){if(!val())return;ans._duration_sec=Math.round((Date.now()-st)/1000);var rec={id:crypto.randomUUID?crypto.randomUUID():'rec_'+Date.now(),participantId:pid,projectId:proj.id,timestamp:Date.now(),answers:ans,_syncStatus:'pending'};await subPut(rec);if(isOnlineMode&&navigator.onLine&&proj.googleUrl){try{await fetch(proj.googleUrl,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(rec)});rec._syncStatus='synced';await subPut(rec);toast('Saved & synced!','success')}catch(e){await qPut(rec);toast('Saved locally. Will sync.','warning')}}else{toast('Saved locally.','success')}ans={};pid='';document.getElementById('p-id').value='';pg=0;goTo('intro')}
         function checkPin(){var c=prompt('Enter PIN:');if(c===proj.pin){goTo('dash');updDash()}else if(c!==null)alert('Access Denied')}
-        async function updDash(){var d=await db.submissions.toArray();document.getElementById('d-count').textContent=d.length;var s=d.filter(function(r){return r._syncStatus==='synced'}).length;var p=d.length-s;document.getElementById('d-synced').textContent=s;document.getElementById('d-pending').textContent=p;var l=document.getElementById('d-list');l.innerHTML=d.length===0?'<p class="text-center text-gray-500 py-4">No data.</p>':d.map(function(x){return '<div class="p-3 border rounded flex justify-between items-center"><div><span class="font-bold">'+esc(x.participantId)+'</span><span class="text-xs text-gray-500 ml-2">'+new Date(x.timestamp).toLocaleString()+'</span></div><div class="flex gap-2"><button onclick="edt(\''+x.id+'\')" class="text-xs bg-yellow-100 text-yellow-700 px-2 py-1 rounded">Edit</button><button onclick="del(\''+x.id+'\')" class="text-xs bg-red-100 text-red-700 px-2 py-1 rounded">Delete</button></div></div>'}).join('')}
-        window.edt=function(id){var c=prompt('PIN:');if(c!==proj.pin)return alert('Denied');db.submissions.get(id).then(function(r){if(r){ans=r.answers;pid=r.participantId;pg=0;goTo('int');ren()}})}
-        window.del=function(id){if(confirm('Delete?')){db.submissions.delete(id);db.syncQueue.delete(id);updDash()}}
+        async function updDash(){var d=await subAll();document.getElementById('d-count').textContent=d.length;var s=d.filter(function(r){return r._syncStatus==='synced'}).length;var p=d.length-s;document.getElementById('d-synced').textContent=s;document.getElementById('d-pending').textContent=p;var l=document.getElementById('d-list');l.innerHTML=d.length===0?'<p class="text-center text-gray-500 py-4">No data.</p>':d.map(function(x){return '<div class="p-3 border rounded flex justify-between items-center"><div><span class="font-bold">'+esc(x.participantId)+'</span><span class="text-xs text-gray-500 ml-2">'+new Date(x.timestamp).toLocaleString()+'</span></div><div class="flex gap-2"><button onclick="edt(\''+x.id+'\')" class="text-xs bg-yellow-100 text-yellow-700 px-2 py-1 rounded">Edit</button><button onclick="del(\''+x.id+'\')" class="text-xs bg-red-100 text-red-700 px-2 py-1 rounded">Delete</button></div></div>'}).join('')}
+        window.edt=function(id){var c=prompt('PIN:');if(c!==proj.pin)return alert('Denied');subGet(id).then(function(r){if(r){ans=r.answers;pid=r.participantId;pg=0;goTo('int');ren()}})}
+        window.del=function(id){if(confirm('Delete?')){subDel(id);qDel(id);updDash()}}
         async function syncAll(){if(!navigator.onLine){toast('Offline','error');return}await processQueue();updDash()}
-        async function exp(){var d=await db.submissions.toArray();if(d.length===0)return alert('No data');var a=document.createElement('a');a.href=URL.createObjectURL(new Blob([JSON.stringify({metadata:{projectName:proj.name,projectId:proj.id,exportedAt:new Date().toISOString(),totalRecords:d.length},data:d},null,2)],{type:'application/json'}));a.download='sync_'+Date.now()+'.json';a.click()}
-        goTo('intro');
+        async function exp(){var d=await subAll();if(d.length===0)return alert('No data');var a=document.createElement('a');a.href=URL.createObjectURL(new Blob([JSON.stringify({metadata:{projectName:proj.name,projectId:proj.id,exportedAt:new Date().toISOString(),totalRecords:d.length},data:d},null,2)],{type:'application/json'}));a.download='sync_'+Date.now()+'.json';a.click()}
+
+        /* Bootstrap — always runs, even if a CDN failed */
+        try { updConn(); } catch(e) {}
+        try { goTo('intro'); } catch(e) { alert('Startup error: ' + e.message); }
         <\/script>
         <\/body>
         <\/html>`;
