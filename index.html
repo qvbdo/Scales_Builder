@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Clinical Data Dashboard - Dual Cloud Edition</title>
+    <title>Clinical Data Dashboard - Hardcoded Config Edition</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/dexie/dist/dexie.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
@@ -14,8 +14,8 @@
         <!-- Header -->
         <div class="flex justify-between items-center mb-8 bg-white p-4 rounded-xl shadow-sm border-t-4 border-gray-800">
             <div>
-                <h1 class="text-2xl font-bold text-gray-800">Research Platform v17.5</h1>
-                <p class="text-xs text-gray-500 font-bold uppercase tracking-wider">Dual Sync: Supabase + Google Sheets</p>
+                <h1 class="text-2xl font-bold text-gray-800">Research Platform v17.6</h1>
+                <p class="text-xs text-gray-500 font-bold uppercase tracking-wider">Dual Sync + Hardcoded Master Config</p>
             </div>
             <div class="flex gap-2">
                 <button onclick="switchView('builder')" id="btn-builder" class="bg-blue-600 text-white px-4 py-2 rounded font-bold shadow transition">1. Builder</button>
@@ -55,17 +55,17 @@
 
                 <!-- Cloud Database Credentials Setup -->
                 <div class="bg-indigo-50 p-4 rounded-lg border border-indigo-100 flex flex-col gap-3">
-                    <span class="text-xs font-bold text-indigo-900 uppercase tracking-wider border-b border-indigo-200 pb-2">Cloud Backend Config:</span>
+                    <span class="text-xs font-bold text-indigo-900 uppercase tracking-wider border-b border-indigo-200 pb-2">Cloud Backend Config (Auto-Filled from Source Code):</span>
                     
                     <div class="flex flex-wrap gap-4 items-center">
                         <label class="text-sm font-bold text-indigo-800 w-32">Supabase Sync:</label>
-                        <input type="text" id="cloud-url" onchange="localStorage.setItem('globalCloudUrl', this.value); if(!blueprint.cloud) blueprint.cloud = {}; blueprint.cloud.url = this.value" placeholder="Cloud Endpoint URL (e.g., https://xyz.supabase.co/rest/v1/submissions)" class="flex-1 p-2 border rounded text-xs font-mono">
-                        <input type="password" id="cloud-key" onchange="localStorage.setItem('globalCloudKey', this.value); if(!blueprint.cloud) blueprint.cloud = {}; blueprint.cloud.key = this.value" placeholder="Cloud API Key / Bearer Token" class="w-64 p-2 border rounded text-xs font-mono">
+                        <input type="text" id="cloud-url" onchange="if(!blueprint.cloud) blueprint.cloud = {}; blueprint.cloud.url = this.value" placeholder="Cloud Endpoint URL" class="flex-1 p-2 border rounded text-xs font-mono bg-gray-100">
+                        <input type="password" id="cloud-key" onchange="if(!blueprint.cloud) blueprint.cloud = {}; blueprint.cloud.key = this.value" placeholder="Cloud API Key" class="w-64 p-2 border rounded text-xs font-mono bg-gray-100">
                     </div>
                     
                     <div class="flex flex-wrap gap-4 items-center mt-2">
                         <label class="text-sm font-bold text-green-800 w-32">Google Sheet URL:</label>
-                        <input type="text" id="sheet-url" onchange="localStorage.setItem('globalSheetUrl', this.value); if(!blueprint.cloud) blueprint.cloud = {}; blueprint.cloud.sheetUrl = this.value" placeholder="Paste your Google Apps Script Web App URL here..." class="flex-1 p-2 border border-green-300 bg-green-50 rounded text-xs font-mono">
+                        <input type="text" id="sheet-url" onchange="if(!blueprint.cloud) blueprint.cloud = {}; blueprint.cloud.sheetUrl = this.value" placeholder="Google Apps Script Web App URL" class="flex-1 p-2 border border-green-300 bg-green-50 rounded text-xs font-mono">
                     </div>
                 </div>
             </div>
@@ -172,6 +172,19 @@
     </div>
 
     <script>
+        // =====================================================================
+        // 🔒 MASTER CONFIGURATION (HARDCODED)
+        // Paste your URLs and Keys between the quotes below before uploading to GitHub.
+        // Once pasted here, the app will never forget them.
+        // =====================================================================
+        const MASTER_CONFIG = {
+            supabaseUrl: "", // https://racgtsqekgvbvghnkkla.supabase.co/rest/v1/submissions"
+            supabaseKey: "", // sb_publishable_Vt2kmf7OvA7wZHf4Hl5DXQ_clesdbgB"
+            googleSheetUrl: "" https://script.google.com/macros/s/AKfycbyXU4DhqtU8AxYHoMAe4DpwUnTLiJ5vabKlhGKiLXP2V2U71r8VuPhAbagQGikqA8h6ow/exec"
+        };
+        // =====================================================================
+
+
         const db = new Dexie("MasterHubDB_V17");
         db.version(1).stores({ 
             submissions: 'id, participantId, projectId, timestamp', 
@@ -189,16 +202,17 @@
         let blueprint = generateBlankBlueprint();
 
         function generateBlankBlueprint() {
-            const savedUrl = localStorage.getItem('globalCloudUrl') || '';
-            const savedKey = localStorage.getItem('globalCloudKey') || '';
-            const savedSheet = localStorage.getItem('globalSheetUrl') || '';
-            
+            // Pulls directly from the MASTER_CONFIG above, ignoring local storage
             return {
                 id: 'proj_' + Date.now(),
                 name: 'Psychiatric Nursing Curricula',
                 pin: '1234', 
                 theme: { color: '#2563eb', font: 'sans-serif' },
-                cloud: { url: savedUrl, key: savedKey, sheetUrl: savedSheet },
+                cloud: { 
+                    url: MASTER_CONFIG.supabaseUrl, 
+                    key: MASTER_CONFIG.supabaseKey, 
+                    sheetUrl: MASTER_CONFIG.googleSheetUrl 
+                },
                 intro: {
                     title_en: 'Psychiatric and Mental Health Evaluation', title_ar: 'التقييم النفسي والصحة العقلية',
                     researchers_en: 'Master Candidate - College of Nursing UO Baghdad', researchers_ar: 'طالب ماجستير - كلية التمريض، جامعة بغداد',
@@ -226,7 +240,9 @@
 
         async function saveTemplate() {
             try {
-                if(!blueprint.cloud) blueprint.cloud = { url: localStorage.getItem('globalCloudUrl')||'', key: localStorage.getItem('globalCloudKey')||'', sheetUrl: localStorage.getItem('globalSheetUrl')||'' };
+                if(!blueprint.cloud) {
+                    blueprint.cloud = { url: MASTER_CONFIG.supabaseUrl, key: MASTER_CONFIG.supabaseKey, sheetUrl: MASTER_CONFIG.googleSheetUrl };
+                }
                 const clone = JSON.parse(JSON.stringify(blueprint));
                 await db.templates.put({ id: clone.id, name: clone.name, timestamp: Date.now(), blueprint: clone });
                 alert(`Project "${clone.name}" saved successfully.`);
@@ -279,18 +295,15 @@
             document.getElementById('theme-color').value = blueprint.theme.color;
             document.getElementById('app-pin').value = blueprint.pin;
             
-            const savedUrl = localStorage.getItem('globalCloudUrl') || blueprint.cloud?.url || '';
-            const savedKey = localStorage.getItem('globalCloudKey') || blueprint.cloud?.key || '';
-            const savedSheet = localStorage.getItem('globalSheetUrl') || blueprint.cloud?.sheetUrl || '';
-            
-            document.getElementById('cloud-url').value = savedUrl;
-            document.getElementById('cloud-key').value = savedKey;
-            document.getElementById('sheet-url').value = savedSheet;
-            
+            // If the loaded blueprint is missing keys, inject them from MASTER_CONFIG automatically
             if(!blueprint.cloud) blueprint.cloud = {};
-            blueprint.cloud.url = savedUrl;
-            blueprint.cloud.key = savedKey;
-            blueprint.cloud.sheetUrl = savedSheet;
+            if(!blueprint.cloud.url) blueprint.cloud.url = MASTER_CONFIG.supabaseUrl;
+            if(!blueprint.cloud.key) blueprint.cloud.key = MASTER_CONFIG.supabaseKey;
+            if(!blueprint.cloud.sheetUrl) blueprint.cloud.sheetUrl = MASTER_CONFIG.googleSheetUrl;
+
+            document.getElementById('cloud-url').value = blueprint.cloud.url;
+            document.getElementById('cloud-key').value = blueprint.cloud.key;
+            document.getElementById('sheet-url').value = blueprint.cloud.sheetUrl;
 
             document.getElementById('intro-title-en').value = blueprint.intro?.title_en || '';
             document.getElementById('intro-res-en').value = blueprint.intro?.researchers_en || '';
@@ -530,7 +543,7 @@
             if (view === 'builder') renderBuilder(); if (view === 'preview') { activePage = 0; renderPreview(); } if (view === 'manager') { closeAnalytics(); loadSamples(); }
         }
 
-        // --- Dual-Mode Offline / Online App Bundler (v17.5 - Dual Sync Google Sheets + Supabase) ---
+        // --- Dual-Mode Offline / Online App Bundler ---
         function exportStandaloneForm(mode) {
             if (mode === 'online' && !blueprint.cloud?.url && !blueprint.cloud?.sheetUrl) {
                 return alert('Please enter at least one Cloud Endpoint URL (Supabase or Google Sheets) in the Builder settings before exporting the Live Online App.');
@@ -694,7 +707,6 @@
             let syncNotice = "";
 
             if (isOnlineMode && navigator.onLine) {
-                // 1. Post to Supabase
                 if (bp.cloud?.url) {
                     try {
                         const res = await fetch(bp.cloud.url, {
@@ -706,10 +718,8 @@
                     } catch(e) { console.log('Supabase sync failed.'); }
                 }
 
-                // 2. Post to Google Sheets
                 if (bp.cloud?.sheetUrl) {
                     try {
-                        // mode: no-cors is required because Google Apps Script redirects responses
                         fetch(bp.cloud.sheetUrl, {
                             method: 'POST',
                             mode: 'no-cors',
