@@ -1,31 +1,1057 @@
 <!DOCTYPE html>
 <html lang="en" dir="ltr">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Clinical Data Dashboard - Offline-First Edition v18.2</title>
-<script src="https://cdn.tailwindcss.com"></script>
-<script src="https://unpkg.com/dexie/dist/dexie.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-<script>tailwind.config={theme:{extend:{colors:{primary:'var(--theme-color, #2563eb)'}}}};</script>
-<style>
-:root{--theme-color:#2563eb}
-body{font-family:'Segoe UI',Tahoma,Geneva,Verdana,sans-serif}
-.tab-active{border-bottom:3px solid var(--theme-color);color:var(--theme-color);font-weight:600}
-.rtl{direction:rtl;text-align:right}
-.modal-bg{background:rgba(0,0,0,0.5);backdrop-filter:blur(4px)}
-.btn-primary{background-color:var(--theme-color);color:white}
-.btn-primary:hover{opacity:0.9}
-.btn-outline{border:1px solid var(--theme-color);color:var(--theme-color)}
-.btn-outline:hover{background-color:var(--theme-color);color:white}
-.sync-pending{background:#fef3c7;border-left:4px solid #f59e0b}
-.sync-synced{background:#d1fae5;border-left:4px solid #10b981}
-.sync-failed{background:#fee2e2;border-left:4px solid #ef4444}
-.sync-conflict{background:#e0e7ff;border-left:4px solid #6366f1}
-.sync-indicator{width:10px;height:10px;border-radius:50%;display:inline-block;margin-right:6px}
-.sync-dot-pending{background:#f59e0b;animation:pulse-dot 1.5s infinite}
-.sync-dot-synced{background:#10b981}
-.sync-dot-failed{background:#ef4444}
-.sync-dot-conflict{background:#6366f1}
-@keyframes pulse-dot{0%,100%{opacity:1}50%{opacity:0.4}}
-.toast{position:fixed
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Clinical Data Dashboard - Enhanced Sync Edition v18.1</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/dexie/dist/dexie.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script>
+        tailwind.config = { theme: { extend: { colors: { primary: 'var(--theme-color, #2563eb)' } } } };
+    </script>
+    <style>
+        :root { --theme-color: #2563eb; }
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+        .tab-active { border-bottom: 3px solid var(--theme-color); color: var(--theme-color); font-weight: 600; }
+        .rtl { direction: rtl; text-align: right; }
+        .modal-bg { background: rgba(0,0,0,0.5); backdrop-filter: blur(4px); }
+        @keyframes pulse { 0%{box-shadow:0 0 0 0 rgba(34,197,94,0.7)} 70%{box-shadow:0 0 0 10px rgba(34,197,94,0)} 100%{box-shadow:0 0 0 0 rgba(34,197,94,0)} }
+        .btn-primary { background-color: var(--theme-color); color: white; }
+        .btn-primary:hover { opacity: 0.9; }
+        .btn-outline { border: 1px solid var(--theme-color); color: var(--theme-color); }
+        .btn-outline:hover { background-color: var(--theme-color); color: white; }
+        .sync-pending { background: #fef3c7; border-left: 4px solid #f59e0b; }
+        .sync-synced { background: #d1fae5; border-left: 4px solid #10b981; }
+        .sync-failed { background: #fee2e2; border-left: 4px solid #ef4444; }
+        .sync-conflict { background: #e0e7ff; border-left: 4px solid #6366f1; }
+        .sync-indicator { width: 10px; height: 10px; border-radius: 50%; display: inline-block; margin-right: 6px; }
+        .sync-dot-pending { background: #f59e0b; animation: pulse-dot 1.5s infinite; }
+        .sync-dot-synced { background: #10b981; }
+        .sync-dot-failed { background: #ef4444; }
+        .sync-dot-conflict { background: #6366f1; }
+        @keyframes pulse-dot { 0%,100%{opacity:1} 50%{opacity:0.4} }
+        .toast { position: fixed; bottom: 20px; right: 20px; padding: 12px 20px; border-radius: 8px; color: white; font-weight: bold; z-index: 100; transition: all 0.3s; transform: translateY(100px); opacity: 0; box-shadow: 0 4px 12px rgba(0,0,0,0.15); }
+        .toast.show { transform: translateY(0); opacity: 1; }
+        .toast-success { background: #10b981; } .toast-error { background: #ef4444; }
+        .toast-warning { background: #f59e0b; } .toast-info { background: #3b82f6; }
+        .queue-badge { position: absolute; top: -8px; right: -8px; background: #ef4444; color: white; font-size: 10px; padding: 2px 6px; border-radius: 10px; font-weight: bold; }
+        .item-card { transition: all 0.2s; } .item-card:hover { box-shadow: 0 4px 12px rgba(0,0,0,0.08); }
+        .sig-canvas { border: 2px dashed #9ca3af; border-radius: 8px; background: white; cursor: crosshair; touch-action: none; }
+        /* LIKERT BATCH GENERATOR */
+        .lbg-box{border:2px solid var(--theme-color);border-radius:8px;padding:16px;margin-bottom:16px;background:#f8fafc}
+        .lbg-box h3{margin:0 0 12px 0;font-size:16px;color:var(--theme-color)}
+        .lbg-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin-bottom:12px}
+        .lbg-grid label{display:flex;flex-direction:column;gap:4px;font-size:12px;font-weight:600;color:#445}
+        .lbg-grid input,.lbg-grid select{padding:8px;border:1px solid #cbd5e1;border-radius:6px;font-size:13px}
+        .lbg-table{width:100%;border-collapse:collapse;background:white;font-size:11px;margin-top:10px}
+        .lbg-table th,.lbg-table td{border:1px solid #e2e8f0;padding:4px 6px;text-align:center}
+        .lbg-table th{background:var(--theme-color);color:white;font-weight:600}
+        .lbg-table td.qname{text-align:left;font-weight:600;background:#f1f5f9}
+        .lbg-table .score{color:var(--theme-color);font-weight:700}
+    </style>
+</head>
+<body class="bg-gray-50 text-gray-800 min-h-screen flex flex-col">
+
+    <header class="bg-white shadow-sm border-b border-gray-200">
+        <div class="max-w-7xl mx-auto px-4 py-4 flex justify-between items-center">
+            <div>
+                <h1 class="text-2xl font-bold text-primary">Clinical Data Dashboard</h1>
+                <p class="text-xs text-gray-500">Research Platform v18.1 | Enhanced Sync & Data Integrity | Export-Fixed</p>
+            </div>
+            <div class="flex items-center gap-4">
+                <div id="connection-status" class="flex items-center gap-2 px-3 py-1.5 rounded-full bg-gray-100 text-xs font-bold">
+                    <span class="sync-indicator sync-dot-pending" id="conn-dot"></span>
+                    <span id="conn-text">Checking...</span>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <nav class="bg-white border-b border-gray-200">
+        <div class="max-w-7xl mx-auto px-4 flex gap-6">
+            <button onclick="switchTab('builder')" id="tab-builder" class="py-3 px-2 text-sm tab-active">1. Builder</button>
+            <button onclick="switchTab('inspect')" id="tab-inspect" class="py-3 px-2 text-sm text-gray-500 hover:text-gray-700">2. Inspect UI</button>
+            <button onclick="switchTab('hub')" id="tab-hub" class="py-3 px-2 text-sm text-gray-500 hover:text-gray-700 relative">
+                3. Master Data Hub <span id="hub-queue-badge" class="queue-badge hidden">0</span>
+            </button>
+        </div>
+    </nav>
+
+    <main class="flex-1 max-w-7xl mx-auto px-4 py-6 w-full">
+
+        <section id="view-builder" class="space-y-6">
+            <div class="bg-white p-6 rounded-lg shadow-sm border border-gray-200">
+                <div class="flex flex-wrap justify-between items-center mb-4">
+                    <h2 class="text-lg font-semibold text-primary">Active Project: <span id="project-name-display" class="font-normal text-gray-600">Untitled</span></h2>
+                    <div class="flex gap-2">
+                        <button onclick="createNewProject()" class="btn-outline px-3 py-1.5 rounded-md text-sm">Create New</button>
+                        <button onclick="saveProject()" class="btn-primary px-3 py-1.5 rounded-md text-sm">💾 Save Project</button>
+                        <button onclick="document.getElementById('load-project-input').click()" class="btn-outline px-3 py-1.5 rounded-md text-sm">📂 Load Project</button>
+                        <input type="file" id="load-project-input" class="hidden" accept=".json" onchange="loadProject(event)">
+                    </div>
+                </div>
+                <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-4">
+                    <div><label class="block text-xs font-medium text-gray-500 mb-1">Theme Color</label>
+                        <input type="color" id="cfg-theme" value="#2563eb" onchange="updateTheme()" class="w-full h-9 rounded border-gray-300 cursor-pointer"></div>
+                    <div><label class="block text-xs font-medium text-gray-500 mb-1">Font</label>
+                        <select id="cfg-font" onchange="updateFont()" class="w-full h-9 rounded border-gray-300 text-sm">
+                            <option value="'Segoe UI', sans-serif">Modern Academic</option>
+                            <option value="Georgia, serif">Classic Serif</option>
+                            <option value="monospace">Monospace</option>
+                        </select></div>
+                    <div><label class="block text-xs font-medium text-gray-500 mb-1">Security PIN</label>
+                        <input type="password" id="cfg-pin" class="w-full h-9 px-2 border border-gray-300 rounded text-sm" placeholder="Optional"></div>
+                    <div class="flex items-end gap-2">
+                        <button onclick="exportOfflineApp()" class="btn-outline px-3 py-1.5 rounded-md text-sm flex-1">Export Offline (.html)</button>
+                        <button onclick="exportOnlineApp()" class="btn-primary px-3 py-1.5 rounded-md text-sm flex-1">🌐 Export Online (.html)</button>
+                    </div>
+                </div>
+            </div>
+
+            <div class="bg-white p-6 rounded-lg shadow-sm border border-gray-200">
+                <h2 class="text-lg font-semibold mb-4 text-primary">Cloud Backend Config</h2>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Google Sheet URL (Web App) <span class="text-red-500">*</span></label>
+                        <input type="text" id="cfg-google-url" class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm font-mono" placeholder="https://script.google.com/macros/s/...">
+                        <div class="flex gap-2 mt-2">
+                            <button onclick="testGoogleSheetConnection()" class="bg-green-600 text-white px-3 py-1 rounded text-xs font-bold hover:bg-green-700">Test Connection</button>
+                            <button onclick="showAppsScriptGuide()" class="bg-blue-600 text-white px-3 py-1 rounded text-xs font-bold hover:bg-blue-700">Setup Guide</button>
+                        </div>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Supabase Sync (Optional Fallback)</label>
+                        <input type="text" id="cfg-supabase-url" class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm font-mono mb-2" placeholder="Supabase REST URL">
+                        <input type="text" id="cfg-supabase-key" class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm font-mono" placeholder="Supabase API Key">
+                    </div>
+                </div>
+                <div class="bg-yellow-50 p-3 rounded border border-yellow-200 mt-3">
+                    <p class="text-xs text-yellow-800 font-bold">⚠️ For Google Sheets sync to work, you must deploy the Apps Script as a Web App with "Execute as: Me" and "Who has access: Anyone".</p>
+                </div>
+            </div>
+
+            <div class="bg-white p-6 rounded-lg shadow-sm border border-gray-200">
+                <h2 class="text-lg font-semibold mb-4 text-primary">Research Details (Introductory Page)</h2>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div class="space-y-3">
+                        <h3 class="font-semibold text-gray-700">English</h3>
+                        <input type="text" id="res-title-en" class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm" placeholder="Study Title (EN)">
+                        <input type="text" id="res-authors-en" class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm" placeholder="Researchers (EN)">
+                        <textarea id="res-welcome-en" rows="3" class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm" placeholder="Welcome / Consent Text (EN)"></textarea>
+                    </div>
+                    <div class="space-y-3">
+                        <h3 class="font-semibold text-gray-700">العربية</h3>
+                        <input type="text" id="res-title-ar" dir="rtl" class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm rtl" placeholder="عنوان الدراسة (AR)">
+                        <input type="text" id="res-authors-ar" dir="rtl" class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm rtl" placeholder="الباحثون (AR)">
+                        <textarea id="res-welcome-ar" rows="3" dir="rtl" class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm rtl" placeholder="نص الترحيب / الموافقة (AR)"></textarea>
+                    </div>
+                </div>
+            </div>
+
+            <div class="bg-white p-6 rounded-lg shadow-sm border border-gray-200">
+                <div class="flex justify-between items-center mb-4">
+                    <h2 class="text-lg font-semibold text-primary">Instrument Structure</h2>
+                    <button onclick="addNewPage()" class="btn-primary px-4 py-2 rounded-md text-sm">+ Add New Page</button>
+                </div>
+
+                <div class="lbg-box" id="likertBatchGen">
+                    <h3>⚡ Likert Batch Generator <span style="font-weight:normal;font-size:12px;color:#666;">(Word-style table insertion — set numbers → auto-generate items)</span></h3>
+                    <div class="lbg-grid">
+                        <label>Number of Questions<input type="number" id="lbgCount" min="1" max="200" value="5"></label>
+                        <label>Scale Points
+                            <select id="lbgPoints">
+                                <option value="3">3-Point</option><option value="4">4-Point</option>
+                                <option value="5" selected>5-Point</option><option value="6">6-Point</option>
+                                <option value="7">7-Point</option>
+                            </select></label>
+                        <label>Scoring Starts At<input type="number" id="lbgStart" value="1"></label>
+                        <label>Scoring Direction
+                            <select id="lbgDirection">
+                                <option value="asc" selected>Ascending (left = lowest score)</option>
+                                <option value="desc">Descending / Reversed (left = highest score)</option>
+                            </select></label>
+                        <label>Point Labels
+                            <select id="lbgLabels">
+                                <option value="all" selected>Verbal (Strongly Disagree … Strongly Agree)</option>
+                                <option value="numbers">Numbers only (1 2 3 4 5)</option>
+                                <option value="endpoints">Verbal on endpoints only</option>
+                            </select></label>
+                        <label>Question Text Prefix<input type="text" id="lbgPrefix" value="Item"></label>
+                        <label>Target Page<select id="lbgTargetPage"></select></label>
+                    </div>
+                    <div id="lbgPreview"></div>
+                    <button type="button" class="btn-primary px-4 py-2 rounded-md text-sm font-bold" onclick="lbgGenerate()">⚡ Generate Items Into Builder</button>
+                </div>
+
+                <div id="builder-pages-container" class="space-y-4"></div>
+            </div>
+        </section>
+
+        <section id="view-inspect" class="hidden">
+            <div class="bg-white p-8 rounded-lg shadow-sm border border-gray-200 max-w-3xl mx-auto">
+                <div class="flex justify-between items-center mb-6 border-b pb-4">
+                    <h2 class="text-xl font-bold text-primary" id="inspect-title">Study Title</h2>
+                    <div class="flex gap-2">
+                        <button onclick="setInspectLang('en')" id="btn-lang-en" class="px-3 py-1 text-xs bg-blue-100 text-blue-800 rounded font-semibold">EN</button>
+                        <button onclick="setInspectLang('ar')" id="btn-lang-ar" class="px-3 py-1 text-xs bg-gray-100 text-gray-800 rounded">AR</button>
+                    </div>
+                </div>
+                <div id="inspect-content" class="space-y-4">
+                    <p class="text-gray-600 mb-6" id="inspect-welcome">Welcome text...</p>
+                    <p class="text-sm text-gray-500 italic" id="inspect-authors">Researchers...</p>
+                    <div id="inspect-pages-container" class="mt-8 space-y-6"></div>
+                </div>
+                <div class="mt-8 flex justify-between items-center border-t pt-4">
+                    <button onclick="inspectPrev()" id="btn-inspect-prev" class="btn-outline px-4 py-2 rounded-md text-sm hidden">Previous</button>
+                    <div class="flex-1"></div>
+                    <button onclick="inspectNext()" id="btn-inspect-next" class="btn-primary px-4 py-2 rounded-md text-sm">Next</button>
+                    <button onclick="handleFinalSubmit()" id="btn-inspect-submit" class="btn-primary px-6 py-2 rounded-md text-sm font-semibold hidden">Submit</button>
+                </div>
+            </div>
+        </section>
+
+        <section id="view-hub" class="hidden space-y-6">
+            <div class="grid grid-cols-4 gap-4">
+                <div class="bg-white border rounded-lg p-4 shadow-sm"><div class="text-xs font-bold text-gray-500 uppercase">Total Records</div><div class="text-2xl font-bold text-gray-800" id="stat-total">0</div></div>
+                <div class="bg-green-50 border border-green-200 rounded-lg p-4 shadow-sm"><div class="text-xs font-bold text-green-600 uppercase">Synced</div><div class="text-2xl font-bold text-green-700" id="stat-synced">0</div></div>
+                <div class="bg-yellow-50 border border-yellow-200 rounded-lg p-4 shadow-sm"><div class="text-xs font-bold text-yellow-600 uppercase">Pending</div><div class="text-2xl font-bold text-yellow-700" id="stat-pending">0</div></div>
+                <div class="bg-red-50 border border-red-200 rounded-lg p-4 shadow-sm"><div class="text-xs font-bold text-red-600 uppercase">Failed</div><div class="text-2xl font-bold text-red-700" id="stat-failed">0</div></div>
+            </div>
+            <div class="flex flex-wrap gap-3">
+                <button onclick="syncEngine.processQueue()" id="btn-sync-now" class="btn-primary px-4 py-2 rounded-md text-sm flex items-center gap-2 relative">🔄 Sync Now<span id="sync-queue-count" class="queue-badge hidden">0</span></button>
+                <button onclick="pullFromCloud()" class="bg-indigo-600 text-white px-4 py-2 rounded-md text-sm hover:bg-indigo-700">☁️ Pull Cloud Data</button>
+                <button onclick="document.getElementById('import-data-input').click()" class="btn-outline px-4 py-2 rounded-md text-sm">📥 Import Offline File (.json)</button>
+                <input type="file" id="import-data-input" class="hidden" accept=".json" onchange="importOfflineData(event)">
+                <button onclick="openAnalytics()" class="bg-purple-600 text-white px-4 py-2 rounded-md text-sm hover:bg-purple-700">📊 View Analytics</button>
+                <button onclick="backupLocal()" class="bg-gray-600 text-white px-4 py-2 rounded-md text-sm hover:bg-gray-700">Backup (.json)</button>
+                <button onclick="exportSPSS()" class="bg-indigo-600 text-white px-4 py-2 rounded-md text-sm hover:bg-indigo-700">Export SPSS (.csv & .sps)</button>
+            </div>
+            <div class="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
+                <div class="p-4 border-b border-gray-200 flex justify-between items-center">
+                    <h3 class="font-semibold text-gray-800">Participant Records</h3>
+                    <span id="pending-count" class="text-xs bg-yellow-100 text-yellow-800 px-2 py-1 rounded-full">0 Pending Sync</span>
+                </div>
+                <div class="overflow-x-auto">
+                    <table class="min-w-full divide-y divide-gray-200">
+                        <thead class="bg-gray-50"><tr>
+                            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
+                            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Participant ID</th>
+                            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Project ID</th>
+                            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Time</th>
+                            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Duration</th>
+                            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Action</th>
+                        </tr></thead>
+                        <tbody id="data-table-body" class="bg-white divide-y divide-gray-200">
+                            <tr><td colspan="6" class="px-4 py-8 text-center text-gray-500">No participants recorded yet.</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            <div class="bg-gray-50 p-6 rounded-xl border border-gray-200">
+                <h3 class="font-bold text-gray-800 mb-3">📋 Google Apps Script Setup Guide</h3>
+                <p class="text-sm text-gray-600 mb-3">To enable Google Sheets sync, create a new Apps Script project and paste this code:</p>
+                <button onclick="copyAppsScript()" class="bg-blue-600 text-white px-4 py-2 rounded font-bold text-sm mb-3 hover:bg-blue-700">📋 Copy Apps Script Code</button>
+                <div class="bg-gray-900 text-green-400 p-4 rounded text-xs font-mono overflow-x-auto max-h-64 overflow-y-auto" id="apps-script-code">
+// === GOOGLE APPS SCRIPT (Code.gs) ===
+// Deploy as Web App: Execute as Me, Access: Anyone
+
+function doPost(e) {
+  try {
+    var data = JSON.parse(e.postData.contents);
+    if (data.test === true) {
+      return ContentService.createTextOutput(JSON.stringify({
+        success: true, message: "Connection test successful",
+        timestamp: new Date().toISOString()
+      })).setMimeType(ContentService.MimeType.JSON);
+    }
+    var ss = SpreadsheetApp.getActiveSpreadsheet();
+    var sheet = ss.getSheetByName("Submissions");
+    if (!sheet) { sheet = ss.insertSheet("Submissions"); }
+    var baseHeaders = ["id","participantId","projectId","timestamp","duration_sec","syncStatus","checksum"];
+    var answerKeys = [];
+    if (data.answers) {
+      Object.keys(data.answers).forEach(function(k) {
+        if (k !== "_duration_sec" && !k.startsWith("_")) answerKeys.push(k);
+      });
+    }
+    var allHeaders = baseHeaders.concat(answerKeys);
+    var existingHeaders = [];
+    if (sheet.getLastRow() > 0) {
+      existingHeaders = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
+    }
+    if (existingHeaders.length === 0 || existingHeaders[0] === "" || existingHeaders[0] === null) {
+      sheet.getRange(1, 1, 1, allHeaders.length).setValues([allHeaders]);
+      sheet.getRange(1, 1, 1, allHeaders.length)
+        .setFontWeight("bold").setBackground("#4285f4").setFontColor("white");
+      existingHeaders = allHeaders;
+    } else {
+      var newHeaders = [];
+      allHeaders.forEach(function(h) { if (existingHeaders.indexOf(h) === -1) newHeaders.push(h); });
+      if (newHeaders.length > 0) {
+        var startCol = existingHeaders.length + 1;
+        sheet.getRange(1, startCol, 1, newHeaders.length).setValues([newHeaders]);
+        sheet.getRange(1, startCol, 1, newHeaders.length)
+          .setFontWeight("bold").setBackground("#4285f4").setFontColor("white");
+        existingHeaders = existingHeaders.concat(newHeaders);
+      }
+    }
+    var meta = {
+      id: data.id || "", participantId: data.participantId || "", projectId: data.projectId || "",
+      timestamp: data.timestamp ? new Date(data.timestamp).toISOString() : "",
+      duration_sec: data.answers && data.answers._duration_sec ? data.answers._duration_sec : "",
+      syncStatus: data._syncStatus || "synced", checksum: data._checksum || ""
+    };
+    var row = [];
+    existingHeaders.forEach(function(h) {
+      if (meta.hasOwnProperty(h)) row.push(meta[h]);
+      else if (data.answers && data.answers.hasOwnProperty(h)) {
+        var val = data.answers[h];
+        if (Array.isArray(val)) row.push(val.join("|"));
+        else if (typeof val === "string" && val.length > 50000) row.push(val.substring(0, 50000) + "...[truncated]");
+        else row.push(val);
+      } else row.push("");
+    });
+    sheet.appendRow(row);
+    return ContentService.createTextOutput(JSON.stringify({
+      success: true, message: "Record saved", id: data.id, row: sheet.getLastRow()
+    })).setMimeType(ContentService.MimeType.JSON);
+  } catch (error) {
+    return ContentService.createTextOutput(JSON.stringify({
+      success: false, error: error.toString()
+    })).setMimeType(ContentService.MimeType.JSON);
+  }
+}
+
+function doGet(e) {
+  return ContentService.createTextOutput(JSON.stringify({
+    status: "active", version: "1.0", timestamp: new Date().toISOString()
+  })).setMimeType(ContentService.MimeType.JSON);
+}
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <div id="modal-analytics" class="fixed inset-0 z-50 hidden flex items-center justify-center modal-bg">
+        <div class="bg-white rounded-lg shadow-xl w-full max-w-5xl max-h-[90vh] overflow-hidden flex flex-col">
+            <div class="p-4 border-b flex justify-between items-center">
+                <h3 class="text-lg font-bold text-primary">Live Frequency Distributions</h3>
+                <button onclick="closeModal('modal-analytics')" class="text-gray-500 hover:text-gray-700 text-2xl">&times;</button>
+            </div>
+            <div id="analytics-content" class="p-6 overflow-y-auto flex-1"></div>
+        </div>
+    </div>
+
+    <div id="modal-guide" class="fixed inset-0 z-50 hidden flex items-center justify-center modal-bg">
+        <div class="bg-white rounded-lg shadow-xl w-full max-w-2xl max-h-[90vh] overflow-hidden flex flex-col">
+            <div class="p-4 border-b flex justify-between items-center">
+                <h3 class="text-lg font-bold text-primary">Google Apps Script Setup</h3>
+                <button onclick="closeModal('modal-guide')" class="text-gray-500 hover:text-gray-700 text-2xl">&times;</button>
+            </div>
+            <div class="p-6 overflow-y-auto flex-1 space-y-4">
+                <div class="bg-blue-50 p-4 rounded border border-blue-200"><h4 class="font-bold text-blue-900 mb-2">Step 1: Create the Script</h4>
+                    <ol class="list-decimal list-inside text-sm text-blue-800 space-y-1"><li>Open your Google Sheet</li><li>Click <b>Extensions → Apps Script</b></li><li>Delete the default <code>myFunction</code></li><li>Paste the code from the Data Hub below</li></ol></div>
+                <div class="bg-green-50 p-4 rounded border border-green-200"><h4 class="font-bold text-green-900 mb-2">Step 2: Deploy as Web App</h4>
+                    <ol class="list-decimal list-inside text-sm text-green-800 space-y-1"><li>Click <b>Deploy → New Deployment</b></li><li>Select type: <b>Web App</b></li><li><b>Execute as:</b> Me</li><li><b>Who has access:</b> Anyone</li><li>Click <b>Deploy</b> and authorize</li><li>Copy the Web App URL</li></ol></div>
+                <div class="bg-purple-50 p-4 rounded border border-purple-200"><h4 class="font-bold text-purple-900 mb-2">Step 3: Connect to Platform</h4>
+                    <ol class="list-decimal list-inside text-sm text-purple-800 space-y-1"><li>Paste the URL in Builder → "Google Sheet URL"</li><li>Click <b>Test Connection</b> to verify</li><li>Export Online App and start collecting!</li></ol></div>
+            </div>
+        </div>
+    </div>
+
+    <div id="toast-container"></div>
+
+    <script>
+        // ============ 0. UTILITIES ============
+        function esc(str) {
+            if (str === null || str === undefined) return '';
+            return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+        }
+        function showToast(message, type = 'info', duration = 3000) {
+            const container = document.getElementById('toast-container');
+            const toast = document.createElement('div');
+            toast.className = 'toast toast-' + type;
+            toast.textContent = message;
+            container.appendChild(toast);
+            setTimeout(() => toast.classList.add('show'), 10);
+            setTimeout(() => { toast.classList.remove('show'); setTimeout(() => toast.remove(), 300); }, duration);
+        }
+        function formatSPSS(name) {
+            let clean = name.replace(/\s+/g, '_').replace(/[^a-zA-Z0-9_]/g, '');
+            return (!/^[a-zA-Z@]/.test(clean) && clean.length > 0) ? 'V_' + clean : clean;
+        }
+        function downloadFile(content, fileName, mimeType) {
+            const blob = new Blob([content], { type: mimeType });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url; a.download = fileName;
+            document.body.appendChild(a); a.click(); document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+        }
+
+        // ============ 1. DEXIE DB ============
+        const db = new Dexie("ClinicalDataDB_V18");
+        db.version(1).stores({
+            submissions: 'id, participantId, projectId, timestamp',
+            syncQueue: 'id, status, timestamp',
+            syncLog: '++logId, recordId, action, timestamp, details'
+        });
+
+        // ============ 2. CONNECTION MONITOR ============
+        function updateConnectionStatus() {
+            const dot = document.getElementById('conn-dot');
+            const text = document.getElementById('conn-text');
+            const statusEl = document.getElementById('connection-status');
+            if (navigator.onLine) {
+                dot.className = 'sync-indicator sync-dot-synced'; text.textContent = 'Online';
+                statusEl.className = 'flex items-center gap-2 px-3 py-1.5 rounded-full bg-green-100 text-green-800 text-xs font-bold';
+            } else {
+                dot.className = 'sync-indicator sync-dot-failed'; text.textContent = 'Offline';
+                statusEl.className = 'flex items-center gap-2 px-3 py-1.5 rounded-full bg-red-100 text-red-800 text-xs font-bold';
+            }
+        }
+        window.addEventListener('online', () => { updateConnectionStatus(); if (syncEngine) syncEngine.processQueue(); });
+        window.addEventListener('offline', updateConnectionStatus);
+
+        // ============ 3. VALIDATOR ============
+        class DataValidator {
+            static validateRecord(record, project) {
+                const errors = [];
+                if (!record.id) errors.push("Missing record ID");
+                if (!record.participantId || record.participantId.trim() === '') errors.push("Missing Participant ID");
+                if (!record.projectId) errors.push("Missing Project ID");
+                if (!record.timestamp) errors.push("Missing timestamp");
+                if (!record.answers || Object.keys(record.answers).length === 0) errors.push("Empty answers");
+                if (project && project.pages) {
+                    project.pages.forEach(page => {
+                        page.items.forEach(item => {
+                            if (item.req) {
+                                const val = record.answers[item.vName];
+                                const isEmpty = val === undefined || val === null || val === '' || (Array.isArray(val) && val.length === 0);
+                                if (isEmpty) errors.push('Required: ' + item.vName);
+                            }
+                            if (item.type === 'number' && record.answers[item.vName] !== undefined) {
+                                const num = Number(record.answers[item.vName]);
+                                if (isNaN(num)) errors.push(item.vName + ' must be numeric');
+                                if (item.min !== undefined && num < item.min) errors.push(item.vName + ' below min ' + item.min);
+                                if (item.max !== undefined && num > item.max) errors.push(item.vName + ' above max ' + item.max);
+                            }
+                        });
+                    });
+                }
+                return { valid: errors.length === 0, errors };
+            }
+            static generateChecksum(record) {
+                const str = JSON.stringify(record.answers) + record.participantId + record.projectId;
+                let hash = 0;
+                for (let i = 0; i < str.length; i++) { const char = str.charCodeAt(i); hash = ((hash << 5) - hash) + char; hash = hash & hash; }
+                return Math.abs(hash).toString(16).padStart(8, '0');
+            }
+        }
+
+        // ============ 4. SYNC ENGINE ============
+        class SyncEngine {
+            constructor(projectRef) { this.project = projectRef; this.isProcessing = false; this.retryDelays = [2000,5000,15000,30000,60000]; this.maxRetries = 5; this.online = navigator.onLine; }
+            updateProject(projectRef) { this.project = projectRef; }
+            async save(record) {
+                const validation = DataValidator.validateRecord(record, this.project);
+                if (!validation.valid) { showToast('Validation failed: ' + validation.errors.join(', '), 'error', 5000); throw new Error('Validation failed'); }
+                record._checksum = DataValidator.generateChecksum(record);
+                record._version = 1; record._syncStatus = 'pending'; record._syncAttempts = 0;
+                record._lastSyncAttempt = null; record._syncError = null; record._createdAt = Date.now(); record._modifiedAt = Date.now();
+                await db.submissions.put(record);
+                await db.syncQueue.put({ id: record.id, status: 'pending', attempts: 0, lastAttempt: null, error: null, timestamp: record.timestamp });
+                await db.syncLog.add({ recordId: record.id, action: 'saved_locally', timestamp: Date.now(), details: 'Record saved to IndexedDB' });
+                if (this.online) this.processQueue(); else showToast('Saved locally. Will sync when online.', 'warning');
+                this.updateUI();
+                return record;
+            }
+            async processQueue() {
+                if (this.isProcessing || !this.online) return;
+                this.isProcessing = true;
+                try {
+                    const pending = await db.syncQueue.where('status').anyOf('pending', 'failed').toArray();
+                    if (pending.length === 0) { this.isProcessing = false; return; }
+                    showToast('Syncing ' + pending.length + ' record(s)...', 'info');
+                    for (const queueItem of pending) {
+                        const record = await db.submissions.get(queueItem.id);
+                        if (!record) { await db.syncQueue.delete(queueItem.id); continue; }
+                        const success = await this.syncRecord(record);
+                        if (success) {
+                            await db.syncQueue.update(queueItem.id, { status: 'synced', lastAttempt: Date.now(), error: null });
+                            await db.submissions.update(queueItem.id, { _syncStatus: 'synced', _lastSyncAttempt: Date.now(), _syncError: null });
+                            await db.syncLog.add({ recordId: queueItem.id, action: 'synced', timestamp: Date.now(), details: 'Synced to cloud' });
+                        } else {
+                            const newAttempts = (queueItem.attempts || 0) + 1;
+                            const status = newAttempts >= this.maxRetries ? 'failed' : 'pending';
+                            await db.syncQueue.update(queueItem.id, { status, attempts: newAttempts, lastAttempt: Date.now(), error: record._syncError || 'Unknown' });
+                            await db.submissions.update(queueItem.id, { _syncStatus: status, _syncAttempts: newAttempts, _lastSyncAttempt: Date.now() });
+                        }
+                    }
+                    const remaining = await db.syncQueue.where('status').anyOf('pending', 'failed').count();
+                    if (remaining > 0) { showToast(remaining + ' still pending. Retrying...', 'warning'); setTimeout(() => this.processQueue(), this.retryDelays[0]); }
+                    else showToast('All records synced!', 'success');
+                } catch (e) { console.error('Sync error:', e); showToast('Sync error: ' + e.message, 'error'); }
+                finally { this.isProcessing = false; this.updateUI(); }
+            }
+            async syncRecord(record) {
+                let success = false;
+                if (this.project.googleUrl) {
+                    try {
+                        const response = await fetch(this.project.googleUrl, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(record) });
+                        let result; try { result = await response.json(); } catch (e) { result = { success: response.ok }; }
+                        if (result.success || response.ok) success = true; else record._syncError = result.error || 'Sheet rejected';
+                    } catch (e) { record._syncError = 'Sheets: ' + e.message; }
+                }
+                if (!success && this.project.supabaseUrl) {
+                    try {
+                        const response = await fetch(this.project.supabaseUrl, { method: 'POST', headers: { 'Content-Type': 'application/json', 'apikey': this.project.supabaseKey || '', 'Authorization': 'Bearer ' + (this.project.supabaseKey || ''), 'Prefer': 'resolution=merge-duplicates' }, body: JSON.stringify(record) });
+                        if (response.ok) success = true; else { const err = await response.text(); record._syncError = 'Supabase: ' + err; }
+                    } catch (e) { record._syncError = 'Supabase: ' + e.message; }
+                }
+                return success;
+            }
+            async pullFromCloud() {
+                if (!this.project.supabaseUrl) { showToast('Supabase not configured for pull. Use Google Sheets as primary.', 'warning'); return; }
+                try {
+                    const fetchUrl = new URL(this.project.supabaseUrl);
+                    fetchUrl.searchParams.append('projectId', 'eq.' + this.project.id);
+                    const res = await fetch(fetchUrl.toString(), { headers: { 'apikey': this.project.supabaseKey || '', 'Authorization': 'Bearer ' + (this.project.supabaseKey || '') } });
+                    if (!res.ok) throw new Error('Fetch failed: ' + res.status);
+                    const rows = await res.json();
+                    if (Array.isArray(rows)) {
+                        let imported = 0, conflicts = 0;
+                        for (let r of rows) {
+                            const existing = await db.submissions.get(r.id);
+                            if (!existing) { r._syncStatus = 'synced'; await db.submissions.put(r); await db.syncQueue.put({ id: r.id, status: 'synced', attempts: 0, lastAttempt: Date.now(), error: null, timestamp: r.timestamp }); imported++; }
+                            else { const remoteChecksum = DataValidator.generateChecksum(r); if (remoteChecksum !== existing._checksum) { conflicts++; await db.submissions.update(r.id, { _syncStatus: 'conflict', _conflictRemote: r, _conflictDetectedAt: Date.now() }); } }
+                        }
+                        showToast('Pulled ' + imported + ' new records. ' + conflicts + ' conflicts.', conflicts > 0 ? 'warning' : 'success');
+                        this.updateUI();
+                        return { imported, conflicts };
+                    }
+                } catch (e) { showToast('Pull failed: ' + e.message, 'error'); throw e; }
+            }
+            async getStats() {
+                const total = await db.submissions.where({ projectId: this.project.id }).count();
+                const synced = await db.submissions.where({ projectId: this.project.id }).filter(r => r._syncStatus === 'synced').count();
+                const pending = await db.syncQueue.where('status').equals('pending').count();
+                const failed = await db.syncQueue.where('status').equals('failed').count();
+                return { total, synced, pending, failed };
+            }
+            updateUI() {
+                this.getStats().then(stats => {
+                    document.getElementById('stat-total').textContent = stats.total;
+                    document.getElementById('stat-synced').textContent = stats.synced;
+                    document.getElementById('stat-pending').textContent = stats.pending;
+                    document.getElementById('stat-failed').textContent = stats.failed;
+                    const queueCount = stats.pending + stats.failed;
+                    const badge = document.getElementById('hub-queue-badge');
+                    const syncBadge = document.getElementById('sync-queue-count');
+                    const pendingLabel = document.getElementById('pending-count');
+                    if (queueCount > 0) {
+                        badge.textContent = queueCount; badge.classList.remove('hidden');
+                        syncBadge.textContent = queueCount; syncBadge.classList.remove('hidden');
+                        pendingLabel.textContent = queueCount + ' Pending Sync';
+                        pendingLabel.className = 'text-xs bg-red-100 text-red-800 px-2 py-1 rounded-full';
+                    } else {
+                        badge.classList.add('hidden'); syncBadge.classList.add('hidden');
+                        pendingLabel.textContent = '0 Pending Sync';
+                        pendingLabel.className = 'text-xs bg-green-100 text-green-800 px-2 py-1 rounded-full';
+                    }
+                });
+            }
+        }
+
+        // ============ 5. SPSS ENGINE ============
+        class SPSSDataEngine {
+            constructor() { this.codebook = {}; }
+            sanitizeVarName(rawName, prefix) {
+                let cleanName = rawName.replace(/[^a-zA-Z0-9_]/g, "_").replace(/_+/g, "_").replace(/^_+|_+$/g, "");
+                if (!/^[a-zA-Z]/.test(cleanName)) cleanName = "var_" + cleanName;
+                cleanName = cleanName.substring(0, 64);
+                return prefix ? prefix + "_" + cleanName : cleanName;
+            }
+            prepareDataForExport(answers, duration, projectConfig, participantId) {
+                let flatRow = {};
+                flatRow['ParticipantID'] = participantId || ('P_' + Date.now().toString(36));
+                flatRow['ProjectID'] = projectConfig.id || 'Default';
+                flatRow['Timestamp'] = new Date().toISOString();
+                flatRow['Duration_Sec'] = duration || 0;
+                flatRow['Language'] = currentInspectLang || 'EN';
+                projectConfig.pages.forEach(function(page, pIdx) {
+                    page.items.forEach(function(item, iIdx) {
+                        let varName = item.vName || this.sanitizeVarName(item.title_en || item.title || ("Item_" + iIdx), ("P" + (pIdx + 1)));
+                        let value = answers[item.vName || item.id];
+                        if (item.type === 'scale' || item.type === 'likert' || item.type === 'scale10') {
+                            flatRow[varName] = value ? Number(value) : null;
+                            this.codebook[varName] = { label: item.title_en || item.title, type: 'Ordinal', format: item.type === 'scale10' ? 'F2.0' : 'F8.0',
+                                values: item.options ? item.options.reduce(function(acc, opt, idx) { acc[opt.value !== undefined ? opt.value : (idx + 1)] = opt.label_en || opt.text || opt.label; return acc; }, {}) : {} };
+                        } else if (item.type === 'number') {
+                            flatRow[varName] = value !== undefined ? Number(value) : null;
+                            this.codebook[varName] = { label: item.title_en || item.title, type: 'Scale', format: 'F8.2', values: {} };
+                        } else if (item.type === 'text') {
+                            flatRow[varName] = value ? String(value) : "";
+                            this.codebook[varName] = { label: item.title_en || item.title, type: 'Nominal', format: 'A255', values: {} };
+                        } else if (item.type === 'binary' || item.type === 'mcq') {
+                            flatRow[varName] = value !== undefined ? Number(value) : null;
+                            this.codebook[varName] = { label: item.title_en || item.title, type: 'Nominal', format: 'F8.0',
+                                values: item.options ? item.options.reduce(function(acc, opt, idx) { acc[opt.value !== undefined ? opt.value : (idx + 1)] = opt.label_en || opt.text || opt.label; return acc; }, {}) : {} };
+                        } else if (item.type === 'checkbox') {
+                            let arr = Array.isArray(value) ? value : [];
+                            (item.options || []).forEach(function(opt, oIdx) {
+                                let subVar = varName + '_' + (opt.value !== undefined ? opt.value : (oIdx + 1));
+                                flatRow[subVar] = arr.includes(opt.value !== undefined ? opt.value : (oIdx + 1)) ? 1 : 0;
+                                this.codebook[subVar] = { label: (item.title_en || item.title) + ' - ' + (opt.label_en || opt.text || opt.label), type: 'Nominal', format: 'F1.0', values: { 0: 'Not Selected', 1: 'Selected' } };
+                            }.bind(this));
+                        } else if (item.type === 'signature' || item.type === 'camera') {
+                            flatRow[varName] = value ? 1 : 0;
+                            this.codebook[varName] = { label: item.title_en || item.title, type: 'Nominal', format: 'F1.0', values: { 0: 'Not Captured', 1: 'Captured' } };
+                        }
+                    }.bind(this));
+                }.bind(this));
+                return flatRow;
+            }
+            generateSPSSSyntax(projectConfig) {
+                let syntax = "* SPSS Syntax generated by Clinical Data Dashboard v18.1;\n";
+                syntax += "* Project: " + (projectConfig.name || 'Untitled') + ";\n";
+                syntax += "* Generated: " + new Date().toISOString() + ";\n\n";
+                syntax += "* 1. VARIABLE LABELS;\n";
+                for (const varName in this.codebook) { const meta = this.codebook[varName]; syntax += 'VARIABLE LABELS ' + varName + ' "' + (meta.label || varName).replace(/"/g, '""') + '".\n'; }
+                syntax += "EXECUTE.\n\n";
+                syntax += "* 2. VALUE LABELS;\n";
+                for (const varName in this.codebook) {
+                    const meta = this.codebook[varName];
+                    if (Object.keys(meta.values).length > 0) {
+                        let valLabels = Object.entries(meta.values).map(function(entry) { return entry[0] + '="' + entry[1].replace(/"/g, '""') + '"'; }).join(" ");
+                        syntax += 'VALUE LABELS ' + varName + ' ' + valLabels + '.\n';
+                    }
+                }
+                syntax += "EXECUTE.\n\n";
+                syntax += "* 3. VARIABLE FORMATS;\n";
+                for (const varName in this.codebook) { const meta = this.codebook[varName]; if (meta.format) syntax += 'FORMATS ' + varName + ' (' + meta.format + ').\n'; }
+                syntax += "EXECUTE.\n\n";
+                syntax += "* 4. MEASUREMENT LEVELS;\n";
+                for (const varName in this.codebook) { const meta = this.codebook[varName]; syntax += 'VARIABLE LEVEL ' + varName + ' (' + (meta.type || 'NOMINAL') + ').\n'; }
+                syntax += "EXECUTE.\n\n";
+                syntax += "* 5. MISSING VALUES;\n";
+                for (const varName in this.codebook) { const meta = this.codebook[varName]; if (meta.type === 'Scale' || meta.type === 'Ordinal') syntax += 'MISSING VALUES ' + varName + ' (-99).\n'; }
+                syntax += "EXECUTE.\n\n";
+                syntax += "* 6. SCALE COMPUTATIONS;\n";
+                let scales = {};
+                if (projectConfig && projectConfig.pages) {
+                    projectConfig.pages.forEach(function(page) {
+                        page.items.forEach(function(item) {
+                            if (item.scale && item.scale !== 'Unassigned' && item.scale !== 'Demographics' && item.scale !== 'Consent' && item.scale !== 'Documentation' && ['number','scale','likert','scale10'].includes(item.type)) {
+                                if (!scales[item.scale]) scales[item.scale] = [];
+                                scales[item.scale].push(item.vName || item.id);
+                            }
+                        });
+                    });
+                }
+                for (const scaleName in scales) {
+                    const cleanName = scaleName.replace(/\s+/g, '_').replace(/[^a-zA-Z0-9_]/g, '');
+                    const vars = scales[scaleName].join(', ');
+                    syntax += 'COMPUTE ' + cleanName + '_Total = SUM(' + vars + ').\n';
+                    syntax += 'COMPUTE ' + cleanName + '_Mean = MEAN(' + vars + ').\n';
+                    syntax += 'VARIABLE LABELS ' + cleanName + '_Total "Total Score for ' + scaleName + '".\n';
+                    syntax += 'VARIABLE LABELS ' + cleanName + '_Mean "Mean Score for ' + scaleName + '".\n';
+                    syntax += 'FORMATS ' + cleanName + '_Total ' + cleanName + '_Mean (F8.2).\n';
+                    syntax += 'VARIABLE LEVEL ' + cleanName + '_Total ' + cleanName + '_Mean (SCALE).\n\n';
+                }
+                syntax += "EXECUTE.\n\n";
+                syntax += "* 7. RELIABILITY ANALYSIS (Cronbach's Alpha);\n";
+                for (const scaleName in scales) {
+                    const vars = scales[scaleName].join(' ');
+                    syntax += 'RELIABILITY VARIABLES=' + vars + '\n  /MODEL=ALPHA\n  /STATISTICS=DESCRIPTIVE SCALE CORR\n  /SUMMARY=TOTAL.\n\n';
+                }
+                return syntax;
+            }
+        }
+
+        // ============ 6. STATE ============
+        const spssEngine = new SPSSDataEngine();
+        let syncEngine = null;
+        let appState = {
+            project: {
+                id: 'proj_' + Date.now(), name: 'Untitled Project', theme: '#2563eb', font: "'Segoe UI', sans-serif", pin: '',
+                googleUrl: '', supabaseUrl: '', supabaseKey: '',
+                en: { title: '', authors: '', welcome: '' }, ar: { title: '', authors: '', welcome: '' },
+                pages: [{ id: 'page_1', title_en: 'Page 1', title_ar: 'الصفحة 1', items: [] }]
+            }
+        };
+        let currentInspectLang = 'en';
+        let currentInspectPage = 0;
+        let inspectAnswers = {};
+        let inspectStartTime = Date.now();
+        let inspectParticipantId = '';
+        let charts = [];
+
+        function initApp() {
+            syncEngine = new SyncEngine(appState.project);
+            updateConnectionStatus();
+            renderBuilderPages();
+            syncEngine.updateUI();
+        }
+
+        // ============ 7. UI CONTROLLERS ============
+        function switchTab(tab) {
+            ['builder','inspect','hub'].forEach(function(t) {
+                document.getElementById('view-' + t).classList.add('hidden');
+                document.getElementById('tab-' + t).classList.remove('tab-active');
+                document.getElementById('tab-' + t).classList.add('text-gray-500');
+            });
+            document.getElementById('view-' + tab).classList.remove('hidden');
+            document.getElementById('tab-' + tab).classList.add('tab-active');
+            document.getElementById('tab-' + tab).classList.remove('text-gray-500');
+            if (tab === 'inspect') { currentInspectPage = 0; inspectAnswers = {}; inspectStartTime = Date.now(); renderInspectMode(); }
+            if (tab === 'hub') { renderMasterHubTable(); syncEngine.updateUI(); }
+        }
+        function closeModal(id) { document.getElementById(id).classList.add('hidden'); }
+        function showAppsScriptGuide() { document.getElementById('modal-guide').classList.remove('hidden'); }
+        function copyAppsScript() {
+            const code = document.getElementById('apps-script-code').innerText;
+            navigator.clipboard.writeText(code).then(() => showToast('Apps Script code copied!', 'success'));
+        }
+
+        // ============ 8. BUILDER LOGIC ============
+        function updateTheme() { const color = document.getElementById('cfg-theme').value; document.documentElement.style.setProperty('--theme-color', color); appState.project.theme = color; }
+        function updateFont() { const font = document.getElementById('cfg-font').value; document.body.style.fontFamily = font; appState.project.font = font; }
+        function addNewPage() {
+            const pageNum = appState.project.pages.length + 1;
+            appState.project.pages.push({ id: 'page_' + Date.now(), title_en: 'Page ' + pageNum, title_ar: 'الصفحة ' + pageNum, items: [] });
+            renderBuilderPages();
+        }
+        function deletePage(pageIdx) {
+            if (appState.project.pages.length <= 1) { showToast('Cannot delete the only page.', 'error'); return; }
+            if (confirm('Delete this page and all its items?')) { appState.project.pages.splice(pageIdx, 1); renderBuilderPages(); }
+        }
+        function addNewItem(pageIdx, type) {
+            const typeLabels = { text:'New Text Question', number:'New Number Question', binary:'New Yes/No Question', mcq:'New Multiple Choice', checkbox:'New Checkbox', likert:'New Likert Scale', scale10:'New Scale (1-10)', signature:'New E-Signature', camera:'New Photo Capture' };
+            const defaultOptions = {
+                binary: [{ label_en:'Yes', label_ar:'نعم', value:1 }, { label_en:'No', label_ar:'لا', value:0 }],
+                likert: [
+                    { label_en:'Strongly Disagree', label_ar:'أعارض بشدة', value:1 },
+                    { label_en:'Disagree', label_ar:'أعارض', value:2 },
+                    { label_en:'Neutral', label_ar:'محايد', value:3 },
+                    { label_en:'Agree', label_ar:'أوافق', value:4 },
+                    { label_en:'Strongly Agree', label_ar:'أوافق بشدة', value:5 }
+                ],
+                mcq: [{ label_en:'Option 1', label_ar:'خيار 1', value:1 }, { label_en:'Option 2', label_ar:'خيار 2', value:2 }],
+                checkbox: [{ label_en:'Option 1', label_ar:'خيار 1', value:1 }, { label_en:'Option 2', label_ar:'خيار 2', value:2 }]
+            };
+            const item = {
+                id: 'item_' + Date.now(), vName: formatSPSS('Var_' + Date.now()), type: type,
+                title_en: typeLabels[type] || 'New Question', title_ar: 'سؤال جديد', scale: 'Unassigned', req: false,
+                options: defaultOptions[type] || []
+            };
+            if (type === 'number') { item.min = 0; item.max = 100; }
+            appState.project.pages[pageIdx].items.push(item);
+            renderBuilderPages();
+        }
+        function deleteItem(pageIdx, itemIdx) { appState.project.pages[pageIdx].items.splice(itemIdx, 1); renderBuilderPages(); }
+        function updateItemField(pageIdx, itemIdx, field, value) {
+            const item = appState.project.pages[pageIdx].items[itemIdx];
+            if (field === 'vName') item[field] = formatSPSS(value);
+            else if (field === 'req' || field === 'min' || field === 'max') item[field] = value;
+            else item[field] = value;
+            renderBuilderPages();
+        }
+        function updateItemOption(pageIdx, itemIdx, optIdx, field, value) {
+            const item = appState.project.pages[pageIdx].items[itemIdx];
+            if (!item.options) item.options = [];
+            if (!item.options[optIdx]) item.options[optIdx] = {};
+            if (field === 'value') item.options[optIdx][field] = Number(value);
+            else item.options[optIdx][field] = value;
+        }
+        function addOption(pageIdx, itemIdx) {
+            const item = appState.project.pages[pageIdx].items[itemIdx];
+            if (!item.options) item.options = [];
+            const nextVal = item.options.length + 1;
+            item.options.push({ label_en: 'Option ' + nextVal, label_ar: 'خيار ' + nextVal, value: nextVal });
+            renderBuilderPages();
+        }
+        function removeOption(pageIdx, itemIdx, optIdx) { appState.project.pages[pageIdx].items[itemIdx].options.splice(optIdx, 1); renderBuilderPages(); }
+        function updateShowIf(pageIdx, itemIdx, field, value) {
+            const item = appState.project.pages[pageIdx].items[itemIdx];
+            if (!item.showIf) item.showIf = {};
+            item.showIf[field] = value;
+        }
+
+        // ============ 8b. RENDER BUILDER ============
+        function renderBuilderPages() {
+            const container = document.getElementById('builder-pages-container');
+            container.innerHTML = '';
+            appState.project.pages.forEach(function(page, pIdx) {
+                let itemsHtml = page.items.map(function(item, iIdx) {
+                    const typeBadge = { text:'bg-gray-100 text-gray-700', number:'bg-blue-100 text-blue-700', binary:'bg-purple-100 text-purple-700', mcq:'bg-green-100 text-green-700', checkbox:'bg-yellow-100 text-yellow-700', likert:'bg-indigo-100 text-indigo-700', scale10:'bg-pink-100 text-pink-700', signature:'bg-orange-100 text-orange-700', camera:'bg-teal-100 text-teal-700' }[item.type] || 'bg-gray-100 text-gray-700';
+                    let optionsHtml = '';
+                    if (['binary','mcq','likert','checkbox'].includes(item.type) && item.options) {
+                        optionsHtml = '<div class="mt-2 bg-gray-50 p-2 rounded border border-dashed">' +
+                            item.options.map(function(opt, oIdx) {
+                                return '<div class="flex gap-2 mb-1 items-center">' +
+                                    '<input type="text" value="' + esc(opt.label_en) + '" onchange="updateItemOption(' + pIdx + ',' + iIdx + ',' + oIdx + ',\'label_en\',this.value)" class="flex-1 px-2 py-1 border rounded text-xs" placeholder="EN">' +
+                                    '<input type="text" value="' + esc(opt.label_ar) + '" dir="rtl" onchange="updateItemOption(' + pIdx + ',' + iIdx + ',' + oIdx + ',\'label_ar\',this.value)" class="flex-1 px-2 py-1 border rounded text-xs" placeholder="AR">' +
+                                    '<input type="number" value="' + opt.value + '" onchange="updateItemOption(' + pIdx + ',' + iIdx + ',' + oIdx + ',\'value\',this.value)" class="w-14 px-1 py-1 border rounded text-xs font-mono">' +
+                                    '<button onclick="removeOption(' + pIdx + ',' + iIdx + ',' + oIdx + ')" class="text-red-400 hover:text-red-600 text-xs">×</button></div>';
+                            }).join('') +
+                            (item.type !== 'binary' ? '<button onclick="addOption(' + pIdx + ',' + iIdx + ')" class="text-xs text-blue-600 font-bold mt-1">+ Add Option</button>' : '') +
+                            '</div>';
+                    }
+                    let minMaxHtml = '';
+                    if (item.type === 'number') {
+                        minMaxHtml = '<div class="flex gap-2 mt-2">' +
+                            '<input type="number" value="' + (item.min !== undefined ? item.min : '') + '" onchange="updateItemField(' + pIdx + ',' + iIdx + ',\'min\',Number(this.value))" class="w-20 px-2 py-1 border rounded text-xs" placeholder="Min">' +
+                            '<input type="number" value="' + (item.max !== undefined ? item.max : '') + '" onchange="updateItemField(' + pIdx + ',' + iIdx + ',\'max\',Number(this.value))" class="w-20 px-2 py-1 border rounded text-xs" placeholder="Max"></div>';
+                    }
+                    let showIfHtml = '<div class="flex gap-2 mt-2 items-center bg-indigo-50 p-2 rounded border border-indigo-100">' +
+                        '<span class="text-xs font-bold text-indigo-800">⑂ Show if:</span>' +
+                        '<input type="text" value="' + esc(item.showIf?.vName || '') + '" onchange="updateShowIf(' + pIdx + ',' + iIdx + ',\'vName\',this.value)" class="w-24 px-2 py-1 border rounded text-xs" placeholder="Variable">' +
+                        '<span class="text-xs font-bold">==</span>' +
+                        '<input type="text" value="' + esc(item.showIf?.value || '') + '" onchange="updateShowIf(' + pIdx + ',' + iIdx + ',\'value\',this.value)" class="w-16 px-2 py-1 border rounded text-xs" placeholder="Value"></div>';
+                    return '<div class="item-card p-3 bg-white rounded border shadow-sm">' +
+                        '<div class="flex justify-between items-start mb-2">' +
+                        '<div class="flex-1 grid grid-cols-1 md:grid-cols-2 gap-2">' +
+                        '<input type="text" value="' + esc(item.vName) + '" onchange="updateItemField(' + pIdx + ',' + iIdx + ',\'vName\',this.value)" class="px-2 py-1 border rounded text-sm font-mono text-red-600 bg-red-50" placeholder="SPSS Variable Name">' +
+                        '<input type="text" value="' + esc(item.scale) + '" onchange="updateItemField(' + pIdx + ',' + iIdx + ',\'scale\',this.value)" class="px-2 py-1 border rounded text-sm text-purple-800" placeholder="Scale Group">' +
+                        '<input type="text" value="' + esc(item.title_en) + '" onchange="updateItemField(' + pIdx + ',' + iIdx + ',\'title_en\',this.value)" class="px-2 py-1 border rounded text-sm font-semibold" placeholder="Question (EN)">' +
+                        '<input type="text" value="' + esc(item.title_ar) + '" dir="rtl" onchange="updateItemField(' + pIdx + ',' + iIdx + ',\'title_ar\',this.value)" class="px-2 py-1 border rounded text-sm font-semibold" placeholder="السؤال (AR)"></div>' +
+                        '<div class="flex items-center gap-2 ml-4">' +
+                        '<span class="text-xs px-2 py-1 rounded font-bold ' + typeBadge + '">' + item.type + '</span>' +
+                        '<label class="flex items-center gap-1 text-xs bg-yellow-50 px-2 py-1 rounded border cursor-pointer"><input type="checkbox" ' + (item.req ? 'checked' : '') + ' onchange="updateItemField(' + pIdx + ',' + iIdx + ',\'req\',this.checked)"> <span class="font-bold text-yellow-800">Req</span></label>' +
+                        '<button onclick="deleteItem(' + pIdx + ',' + iIdx + ')" class="text-red-500 hover:text-red-700 text-sm font-bold">×</button></div></div>' +
+                        showIfHtml + minMaxHtml + optionsHtml + '</div>';
+                }).join('');
+                container.innerHTML += '<div class="border border-gray-200 rounded-lg p-4 bg-gray-50">' +
+                    '<div class="flex justify-between items-center mb-3">' +
+                    '<div class="flex gap-2 flex-1">' +
+                    '<input type="text" value="' + esc(page.title_en) + '" onchange="appState.project.pages[' + pIdx + '].title_en = this.value" class="font-semibold text-gray-700 bg-transparent border-b border-gray-300 focus:border-primary outline-none flex-1" placeholder="Page Title (EN)">' +
+                    '<input type="text" value="' + esc(page.title_ar) + '" dir="rtl" onchange="appState.project.pages[' + pIdx + '].title_ar = this.value" class="font-semibold text-gray-700 bg-transparent border-b border-gray-300 focus:border-primary outline-none flex-1" placeholder="عنوان الصفحة (AR)"></div>' +
+                    '<button onclick="deletePage(' + pIdx + ')" class="text-red-400 hover:text-red-600 text-sm ml-4">Delete Page</button></div>' +
+                    '<div class="flex flex-wrap gap-2 mb-3">' +
+                    '<button onclick="addNewItem(' + pIdx + ',\'text\')" class="text-xs bg-gray-100 text-gray-700 px-2 py-1 rounded hover:bg-gray-200">+ Text</button>' +
+                    '<button onclick="addNewItem(' + pIdx + ',\'number\')" class="text-xs bg-blue-100 text-blue-700 px-2 py-1 rounded hover:bg-blue-200">+ Number</button>' +
+                    '<button onclick="addNewItem(' + pIdx + ',\'binary\')" class="text-xs bg-purple-100 text-purple-700 px-2 py-1 rounded hover:bg-purple-200">+ Binary</button>' +
+                    '<button onclick="addNewItem(' + pIdx + ',\'mcq\')" class="text-xs bg-green-100 text-green-700 px-2 py-1 rounded hover:bg-green-200">+ MCQ</button>' +
+                    '<button onclick="addNewItem(' + pIdx + ',\'checkbox\')" class="text-xs bg-yellow-100 text-yellow-700 px-2 py-1 rounded hover:bg-yellow-200">+ Checkbox</button>' +
+                    '<button onclick="addNewItem(' + pIdx + ',\'likert\')" class="text-xs bg-indigo-100 text-indigo-700 px-2 py-1 rounded hover:bg-indigo-200">+ Likert</button>' +
+                    '<button onclick="addNewItem(' + pIdx + ',\'scale10\')" class="text-xs bg-pink-100 text-pink-700 px-2 py-1 rounded hover:bg-pink-200">+ Scale 1-10</button>' +
+                    '<button onclick="addNewItem(' + pIdx + ',\'signature\')" class="text-xs bg-orange-100 text-orange-700 px-2 py-1 rounded hover:bg-orange-200">+ Signature</button>' +
+                    '<button onclick="addNewItem(' + pIdx + ',\'camera\')" class="text-xs bg-teal-100 text-teal-700 px-2 py-1 rounded hover:bg-teal-200">+ Camera</button></div>' +
+                    '<div class="space-y-2">' + (itemsHtml || '<p class="text-sm text-gray-400 italic">No items yet. Add questions above.</p>') + '</div></div>';
+            });
+        }
+
+        // ============ 9. SAVE / LOAD / TEST ============
+        function saveProject() {
+            appState.project.name = document.getElementById('project-name-display').innerText;
+            appState.project.googleUrl = document.getElementById('cfg-google-url').value;
+            appState.project.supabaseUrl = document.getElementById('cfg-supabase-url').value;
+            appState.project.supabaseKey = document.getElementById('cfg-supabase-key').value;
+            appState.project.pin = document.getElementById('cfg-pin').value;
+            ['en','ar'].forEach(function(lang) {
+                appState.project[lang].title = document.getElementById('res-title-' + lang).value;
+                appState.project[lang].authors = document.getElementById('res-authors-' + lang).value;
+                appState.project[lang].welcome = document.getElementById('res-welcome-' + lang).value;
+            });
+            localStorage.setItem('clinical_project_state', JSON.stringify(appState));
+            if (syncEngine) syncEngine.updateProject(appState.project);
+            showToast('Project saved successfully!', 'success');
+        }
+        function createNewProject() {
+            if (confirm('Create a new project? Unsaved changes will be lost.')) {
+                localStorage.removeItem('clinical_project_state');
+                appState = { project: { id: 'proj_' + Date.now(), name: 'Untitled Project', theme: '#2563eb', font: "'Segoe UI', sans-serif", pin: '', googleUrl: '', supabaseUrl: '', supabaseKey: '', en: { title:'', authors:'', welcome:'' }, ar: { title:'', authors:'', welcome:'' }, pages: [{ id:'page_1', title_en:'Page 1', title_ar:'الصفحة 1', items: [] }] } };
+                initApp();
+                document.getElementById('project-name-display').innerText = 'Untitled';
+                document.getElementById('cfg-theme').value = '#2563eb';
+                document.getElementById('cfg-font').value = "'Segoe UI', sans-serif";
+                document.getElementById('cfg-pin').value = '';
+                document.getElementById('cfg-google-url').value = '';
+                document.getElementById('cfg-supabase-url').value = '';
+                document.getElementById('cfg-supabase-key').value = '';
+                ['en','ar'].forEach(function(lang) {
+                    document.getElementById('res-title-' + lang).value = '';
+                    document.getElementById('res-authors-' + lang).value = '';
+                    document.getElementById('res-welcome-' + lang).value = '';
+                });
+                updateTheme(); updateFont(); renderBuilderPages();
+            }
+        }
+        function loadProject(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                try {
+                    const loaded = JSON.parse(e.target.result);
+                    if (loaded.project) { appState = loaded; localStorage.setItem('clinical_project_state', JSON.stringify(appState)); location.reload(); }
+                    else showToast('Invalid project file.', 'error');
+                } catch (err) { showToast('Error loading project: ' + err.message, 'error'); }
+            };
+            reader.readAsText(file);
+        }
+        async function testGoogleSheetConnection() {
+            const url = document.getElementById('cfg-google-url').value;
+            if (!url) return showToast('Please enter a Google Sheet URL first.', 'error');
+            showToast('Testing connection...', 'info');
+            try {
+                const response = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ test: true, timestamp: Date.now() }) });
+                let result; try { result = await response.json(); } catch (e) { result = { success: response.ok }; }
+                if (result.success || response.ok) showToast('Connection successful! Google Sheets is ready.', 'success');
+                else showToast('Connection failed: ' + (result.error || 'Unknown'), 'error');
+            } catch (e) { showToast('Connection error: ' + e.message, 'error'); }
+        }
+
+        // ============ 10. INSPECT MODE ============
+        function setInspectLang(lang) {
+            currentInspectLang = lang;
+            document.getElementById('btn-lang-en').className = 'px-3 py-1 text-xs rounded ' + (lang === 'en' ? 'bg-blue-100 text-blue-800 font-semibold' : 'bg-gray-100 text-gray-800');
+            document.getElementById('btn-lang-ar').className = 'px-3 py-1 text-xs rounded ' + (lang === 'ar' ? 'bg-blue-100 text-blue-800 font-semibold' : 'bg-gray-100 text-gray-800');
+            renderInspectMode();
+        }
+        function isHiddenByLogic(item) { if (!item.showIf || !item.showIf.vName) return false; return String(inspectAnswers[item.showIf.vName]) !== String(item.showIf.value); }
+        function evaluateInspectLogic() {
+            const page = appState.project.pages[currentInspectPage];
+            if (!page) return;
+            page.items.forEach(function(item) {
+                const el = document.getElementById('inspect-item-' + item.id);
+                if (!el) return;
+                const isHidden = isHiddenByLogic(item);
+                el.classList.toggle('hidden', isHidden);
+                if (isHidden) delete inspectAnswers[item.vName || item.id];
+            });
+        }
+        function validateInspectPage() {
+            const page = appState.project.pages[currentInspectPage];
+            if (currentInspectPage === 0 && (!inspectParticipantId || inspectParticipantId.trim() === '')) { alert('Participant ID is required.'); return false; }
+            for (let i = 0; i < page.items.length; i++) {
+                const item = page.items[i];
+                if (isHiddenByLogic(item)) continue;
+                const vName = item.vName || item.id;
+                const val = inspectAnswers[vName];
+                const isAns = val !== undefined && val !== null && val !== '' && !(Array.isArray(val) && val.length === 0);
+                if (item.req && !isAns) { alert('Required: ' + (item['title_' + currentInspectLang] || item.title_en || item.title)); return false; }
+                if (item.type === 'number' && isAns) {
+                    const num = Number(val);
+                    if (item.min !== undefined && num < item.min) { alert((item['title_' + currentInspectLang] || item.title_en) + ' minimum is ' + item.min); return false; }
+                    if (item.max !== undefined && num > item.max) { alert((item['title_' + currentInspectLang] || item.title_en) + ' maximum is ' + item.max); return false; }
+                }
+            }
+            return true;
+        }
+        function renderInspectMode() {
+            const p = appState.project;
+            const lang = currentInspectLang;
+            const isAr = lang === 'ar';
+            document.getElementById('inspect-content').classList.toggle('rtl', isAr);
+            document.getElementById('inspect-title').innerText = p[lang].title || 'Untitled Study';
+            document.getElementById('inspect-authors').innerText = p[lang].authors || 'Researchers';
+            document.getElementById('inspect-welcome').innerText = p[lang].welcome || 'Welcome text...';
+            const container = document.getElementById('inspect-pages-container');
+            container.innerHTML = '';
+            const page = p.pages[currentInspectPage];
+            if (!page) return;
+            let pageHtml = '<h3 class="text-lg font-bold mb-4 text-primary">' + esc(page['title_' + lang] || page.title_en) + '</h3>';
+            if (currentInspectPage === 0) {
+                pageHtml += '<div class="mb-6 bg-blue-50 p-4 rounded border border-blue-200">' +
+                    '<label class="block font-bold text-blue-900 mb-2">Participant ID <span class="text-red-500">*</span></label>' +
+                    '<input type="text" id="inspect-participant-id" class="w-full p-3 border rounded font-mono text-lg shadow-inner" value="' + esc(inspectParticipantId) + '" onchange="inspectParticipantId = this.value;" placeholder="Enter ID..."></div>';
+            }
+            page.items.forEach(function(item) {
+                const vName = item.vName || item.id;
+                const title = item['title_' + lang] || item.title_en || item.title;
+                const rq = item.req ? '<span class="text-red-500 font-bold">*</span>' : '';
+                let inputHtml = '';
+                if (item.type === 'text') {
+                    inputHtml = '<textarea class="w-full p-3 border rounded shadow-sm text-lg min-h-[100px]" onchange="inspectAnswers[\'' + vName + '\'] = this.value; evaluateInspectLogic();">' + (inspectAnswers[vName] || '') + '</textarea>';
+                } else if (item.type === 'number') {
+                    inputHtml = '<input type="number" class="w-full p-3 border rounded shadow-sm text-lg" onchange="inspectAnswers[\'' + vName + '\'] = Number(this.value); evaluateInspectLogic();" value="' + (inspectAnswers[vName] || '') + '">' +
+                        (item.min !== undefined || item.max !== undefined ? '<p class="text-xs text-gray-500 mt-1">Range: ' + (item.min !== undefined ? item.min : '∞') + ' - ' + (item.max !== undefined ? item.max : '∞') + '</p>' : '');
+                } else if (item.type === 'binary' || item.type === 'mcq') {
+                    inputHtml = '<div class="space-y-2">' + (item.options || []).map(function(opt) {
+                        return '<label class="flex items-center gap-3 p-3 border rounded cursor-pointer hover:bg-gray-50 transition"><input type="radio" name="' + item.id + '" value="' + opt.value + '" onchange="inspectAnswers[\'' + vName + '\'] = Number(this.value); evaluateInspectLogic();" ' + (inspectAnswers[vName] === opt.value ? 'checked' : '') + ' class="w-5 h-5"><span>' + esc(opt['label_' + lang] || opt.label_en || opt.text || opt.label) + '</span></label>';
+                    }).join('') + '</div>';
+                } else if (item.type === 'checkbox') {
+                    inputHtml = '<div class="space-y-2">' + (item.options || []).map(function(opt) {
+                        const arr = Array.isArray(inspectAnswers[vName]) ? inspectAnswers[vName] : [];
+                        return '<label class="flex items-center gap-3 p-3 border rounded cursor-pointer hover:bg-gray-50 transition"><input type="checkbox" value="' + opt.value + '" onchange="var arr=inspectAnswers[\'' + vName + '\']||[]; if(this.checked){ if(!arr.includes(Number(this.value))) arr.push(Number(this.value)); } else { arr=arr.filter(function(x){return x!==Number(this.value)}.bind(this)); } inspectAnswers[\'' + vName + '\']=arr; evaluateInspectLogic();" ' + (arr.includes(opt.value) ? 'checked' : '') + ' class="w-5 h-5"><span>' + esc(opt['label_' + lang] || opt.label_en || opt.text || opt.label) + '</span></label>';
+                    }).join('') + '</div>';
+                } else if (item.type === 'likert') {
+                    inputHtml = '<div class="flex flex-wrap justify-between gap-2 bg-gray-50 p-4 rounded border">' + (item.options || []).map(function(opt) {
+                        return '<label class="flex flex-col items-center flex-1 text-center cursor-pointer min-w-[80px]"><input type="radio" name="' + item.id + '" value="' + opt.value + '" onchange="inspectAnswers[\'' + vName + '\'] = Number(this.value); evaluateInspectLogic();" ' + (inspectAnswers[vName] === opt.value ? 'checked' : '') + ' class="w-6 h-6 mb-2"><span class="text-xs font-semibold">' + esc(opt['label_' + lang] || opt.label_en || opt.text || opt.label) + '</span></label>';
+                    }).join('') + '</div>';
+                } else if (item.type === 'scale10') {
+                    inputHtml = '<div class="flex flex-wrap justify-between gap-1 bg-gray-50 p-4 rounded border">' + [1,2,3,4,5,6,7,8,9,10].map(function(n) {
+                        return '<label class="flex flex-col items-center flex-1 cursor-pointer min-w-[45px]"><input type="radio" name="' + item.id + '" value="' + n + '" onchange="inspectAnswers[\'' + vName + '\'] = Number(this.value); evaluateInspectLogic();" ' + (inspectAnswers[vName] === n ? 'checked' : '') + ' class="w-6 h-6 mb-2"><span class="text-base font-bold text-gray-700">' + n + '</span></label>';
+                    }).join('') + '</div>';
+                } else if (item.type === 'signature') {
+                    inputHtml = '<div class="sig-canvas p-2 bg-gray-50"><canvas id="sig-' + item.id + '" width="400" height="150" class="w-full bg-white" style="max-width:100%;"></canvas><div class="flex justify-end mt-2"><button type="button" onclick="clearSignature(\'' + item.id + '\',\'' + vName + '\')" class="text-sm font-bold bg-red-100 text-red-600 px-4 py-2 rounded">Clear Signature</button></div></div>';
+                } else if (item.type === 'camera') {
+                    inputHtml = '<div class="p-6 border-2 border-dashed border-gray-400 rounded bg-gray-50 text-center"><input type="file" accept="image/*" capture="environment" onchange="var f=this.files[0]; var r=new FileReader(); r.onload=function(e){inspectAnswers[\'' + vName + '\'] = e.target.result;}; if(f) r.readAsDataURL(f);" class="text-base w-full"></div>';
+                }
+                pageHtml += '<div id="inspect-item-' + item.id + '" class="mb-6 ' + (isHiddenByLogic(item) ? 'hidden' : '') + '"><label class="block font-bold text-lg mb-2 text-gray-800">' + esc(title) + ' ' + rq + '</label>' + inputHtml + '</div>';
+            });
+            container.innerHTML = pageHtml;
+            document.getElementById('btn-inspect-prev').classList.toggle('hidden', currentInspectPage === 0);
+            const isLastPage = currentInspectPage === p.pages.length - 1;
+            document.getElementById('btn-inspect-next').classList.toggle('hidden', isLastPage);
+            document.getElementById('btn-inspect-submit').classList.toggle('hidden', !isLastPage);
+            initSignatureCanvases();
+        }
+        function initSignatureCanvases() {
+            const page = appState.project.pages[currentInspectPage];
+            if (!page) return;
+            page.items.filter(function(item) { return item.type === 'signature'; }).forEach(function(item) {
+                const canvas = document.getElementById('sig-' + item.id);
+                if (!canvas) return;
+                const ctx = canvas.getContext('2d');
+                let drawing = false;
+                function getPos(e) { const rect = canvas.getBoundingClientRect(); return { x: (e.touches ? e.touches[0].clientX : e.clientX) - rect.left, y: (e.touches ? e.touches[0].clientY : e.clientY) - rect.top }; }
+                function startDraw(e) { drawing = true; const pos = getPos(e); ctx.beginPath(); ctx.moveTo(pos.x, pos.y); e.preventDefault(); }
+                function draw(e) { if (!drawing) return; const pos = getPos(e); ctx.lineTo(pos.x, pos.y); ctx.stroke(); e.preventDefault(); }
+                function endDraw(e) { drawing = false; inspectAnswers[item.vName || item.id] = canvas.toDataURL(); e.preventDefault(); }
+                canvas.addEventListener('mousedown', startDraw); canvas.addEventListener('mousemove', draw); canvas.addEventListener('mouseup', endDraw); canvas.addEventListener('mouseout', endDraw);
+                canvas.addEventListener('touchstart', startDraw); canvas.addEventListener('touchmove', draw); canvas.addEventListener('touchend', endDraw);
+            });
+        }
+        window.clearSignature = function(id, vName) {
+            const canvas = document.getElementById('sig-' + id);
+            if (canvas) { canvas.getContext('2d').clearRect(0, 0, canvas.width, canvas.height); delete inspectAnswers[vName]; }
+        };
+        function inspectPrev() { if (currentInspectPage > 0) { currentInspectPage--; renderInspectMode(); window.scrollTo(0, 0); } }
+        function inspectNext() { if (validateInspectPage() && currentInspectPage < appState.project.pages.length - 1) { currentInspectPage++; renderInspectMode(); window.scrollTo(0, 0); } }
+        async function handleFinalSubmit() {
+            if (!validateInspectPage()) return;
+            const duration = Math.floor((Date.now() - inspectStartTime) / 1000);
+            inspectAnswers._duration_sec = duration;
+            const record = {
+                id: crypto.randomUUID ? crypto.randomUUID() : 'rec_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9),
+                participantId: inspectParticipantId, projectId: appState.project.id, timestamp: Date.now(), answers: inspectAnswers
+            };
+            await syncEngine.save(record);
+            let scores = {};
+            appState.project.pages.forEach(function(page) {
+                page.items.forEach(function(item) {
+                    if (item.scale && item.scale !== 'Unassigned' && item.scale !== 'Demographics' && item.scale !== 'Consent' && item.scale !== 'Documentation' && ['number','likert','scale10'].includes(item.type)) {
+                        if (!scores[item.scale]) scores[item.scale] = 0;
+                        const val = inspectAnswers[item.vName || item.id];
+                        if (val !== undefined && !isNaN(val)) scores[item.scale] += Number(val);
+                    }
+                });
+            });
+            let msg = 'Data saved successfully!';
+            if (Object.keys(scores).length > 0) { msg += '\n\nScale Scores:'; for (const scale in scores) msg += '\n- ' + scale + ': ' + scores[scale]; }
+            alert(msg);
+            inspectAnswers = {}; inspectParticipantId = ''; currentInspectPage = 0; inspectStartTime = Date.now();
+            renderInspectMode();
+        }
+
+        // ============ 11. MASTER HUB ============
+        async function renderMasterHubTable() {
+            const tbody = document.getElementById('data-table-body');
+            const records = await db.submissions.where({ projectId: appState.project.id }).reverse().sortBy('timestamp');
+            tbody.innerHTML = '';
+            if (records.length === 0) {
+                tbody.innerHTML = '<tr
