@@ -1,4 +1,3 @@
-
 <!DOCTYPE html>
 <html lang="en" dir="ltr">
 <head>
@@ -263,21 +262,13 @@
                 <h2 class="text-lg font-semibold mb-4 text-primary">Cloud Backend Config</h2>
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-1">Google Sheet URL (Web App) <span class="text-red-500">*</span></label>
-                        <input type="text" id="cfg-google-url" class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm font-mono" placeholder="https://script.google.com/macros/s/...">
-                        <div class="flex gap-2 mt-2">
-                            <button onclick="testGoogleSheetConnection()" class="bg-green-600 text-white px-3 py-1 rounded text-xs font-bold hover:bg-green-700">Test Connection</button>
-                            <button onclick="showAppsScriptGuide()" class="bg-blue-600 text-white px-3 py-1 rounded text-xs font-bold hover:bg-blue-700">Setup Guide</button>
-                        </div>
-                    </div>
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-1">Supabase Sync (Optional Fallback)</label>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Supabase Sync</label>
                         <input type="text" id="cfg-supabase-url" class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm font-mono mb-2" placeholder="Supabase REST URL">
                         <input type="text" id="cfg-supabase-key" class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm font-mono" placeholder="Supabase API Key">
+                        <div class="flex gap-2 mt-2">
+                            <button onclick="testSupabaseConnection()" class="bg-green-600 text-white px-3 py-1 rounded text-xs font-bold hover:bg-green-700">Test Connection</button>
+                        </div>
                     </div>
-                </div>
-                <div class="bg-yellow-50 p-3 rounded border border-yellow-200 mt-3">
-                    <p class="text-xs text-yellow-800 font-bold">⚠️ For Google Sheets sync to work, you must deploy the Apps Script as a Web App with "Execute as: Me" and "Who has access: Anyone".</p>
                 </div>
             </div>
 
@@ -443,107 +434,6 @@
                     </table>
                 </div>
             </div>
-
-            <!-- Google Apps Script Setup Guide -->
-            <div class="bg-gray-50 p-6 rounded-xl border border-gray-200">
-                <h3 class="font-bold text-gray-800 mb-3">📋 Google Apps Script Setup Guide</h3>
-                <p class="text-sm text-gray-600 mb-3">To enable Google Sheets sync, create a new Apps Script project and paste this code:</p>
-                <button onclick="copyAppsScript()" class="bg-blue-600 text-white px-4 py-2 rounded font-bold text-sm mb-3 hover:bg-blue-700">📋 Copy Apps Script Code</button>
-                <div class="bg-gray-900 text-green-400 p-4 rounded text-xs font-mono overflow-x-auto max-h-64 overflow-y-auto" id="apps-script-code">
-                    // === GOOGLE APPS SCRIPT (Code.gs) ===
-                    // Deploy as Web App: Execute as Me, Access: Anyone
-
-                    function doPost(e) {
-                      try {
-                        var data = JSON.parse(e.postData.contents);
-
-                        if (data.test === true) {
-                          return ContentService.createTextOutput(JSON.stringify({
-                            success: true, message: "Connection test successful",
-                            timestamp: new Date().toISOString()
-                          })).setMimeType(ContentService.MimeType.JSON);
-                        }
-
-                        var ss = SpreadsheetApp.getActiveSpreadsheet();
-                        var sheet = ss.getSheetByName("Submissions");
-                        if (!sheet) {
-                          sheet = ss.insertSheet("Submissions");
-                        }
-
-                        var baseHeaders = ["id","participantId","projectId","timestamp","duration_sec","syncStatus","checksum"];
-                        var answerKeys = [];
-                        if (data.answers) {
-                          Object.keys(data.answers).forEach(function(k) {
-                            if (k !== "_duration_sec" && !k.startsWith("_")) answerKeys.push(k);
-                          });
-                        }
-                        var allHeaders = baseHeaders.concat(answerKeys);
-
-                        var existingHeaders = [];
-                        if (sheet.getLastRow() > 0) {
-                          existingHeaders = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
-                        }
-
-                        if (existingHeaders.length === 0 || existingHeaders[0] === "" || existingHeaders[0] === null) {
-                          sheet.getRange(1, 1, 1, allHeaders.length).setValues([allHeaders]);
-                          sheet.getRange(1, 1, 1, allHeaders.length)
-                            .setFontWeight("bold").setBackground("#4285f4").setFontColor("white");
-                          existingHeaders = allHeaders;
-                        } else {
-                          var newHeaders = [];
-                          allHeaders.forEach(function(h) {
-                            if (existingHeaders.indexOf(h) === -1) newHeaders.push(h);
-                          });
-                          if (newHeaders.length > 0) {
-                            var startCol = existingHeaders.length + 1;
-                            sheet.getRange(1, startCol, 1, newHeaders.length).setValues([newHeaders]);
-                            sheet.getRange(1, startCol, 1, newHeaders.length)
-                              .setFontWeight("bold").setBackground("#4285f4").setFontColor("white");
-                            existingHeaders = existingHeaders.concat(newHeaders);
-                          }
-                        }
-
-                        var meta = {
-                          id: data.id || "",
-                          participantId: data.participantId || "",
-                          projectId: data.projectId || "",
-                          timestamp: data.timestamp ? new Date(data.timestamp).toISOString() : "",
-                          duration_sec: data.answers && data.answers._duration_sec ? data.answers._duration_sec : "",
-                          syncStatus: data._syncStatus || "synced",
-                          checksum: data._checksum || ""
-                        };
-
-                        var row = [];
-                        existingHeaders.forEach(function(h) {
-                          if (meta.hasOwnProperty(h)) row.push(meta[h]);
-                          else if (data.answers && data.answers.hasOwnProperty(h)) {
-                            var val = data.answers[h];
-                            if (Array.isArray(val)) row.push(val.join("|"));
-                            else if (typeof val === "string" && val.length > 50000) row.push(val.substring(0, 50000) + "...[truncated]");
-                            else row.push(val);
-                          } else row.push("");
-                        });
-
-                        sheet.appendRow(row);
-
-                        return ContentService.createTextOutput(JSON.stringify({
-                          success: true, message: "Record saved", id: data.id, row: sheet.getLastRow()
-                        })).setMimeType(ContentService.MimeType.JSON);
-
-                      } catch (error) {
-                        return ContentService.createTextOutput(JSON.stringify({
-                          success: false, error: error.toString()
-                        })).setMimeType(ContentService.MimeType.JSON);
-                      }
-                    }
-
-                    function doGet(e) {
-                      return ContentService.createTextOutput(JSON.stringify({
-                        status: "active", version: "1.0", timestamp: new Date().toISOString()
-                      })).setMimeType(ContentService.MimeType.JSON);
-                    }
-                </div>
-            </div>
         </section>
     </main>
 
@@ -557,46 +447,6 @@
             </div>
             <div id="analytics-content" class="p-6 overflow-y-auto flex-1">
                 <!-- Charts injected here -->
-            </div>
-        </div>
-    </div>
-
-    <!-- Apps Script Guide Modal -->
-    <div id="modal-guide" class="fixed inset-0 z-50 hidden flex items-center justify-center modal-bg">
-        <div class="bg-white rounded-lg shadow-xl w-full max-w-2xl max-h-[90vh] overflow-hidden flex flex-col">
-            <div class="p-4 border-b flex justify-between items-center">
-                <h3 class="text-lg font-bold text-primary">Google Apps Script Setup</h3>
-                <button onclick="closeModal('modal-guide')" class="text-gray-500 hover:text-gray-700 text-2xl">&times;</button>
-            </div>
-            <div class="p-6 overflow-y-auto flex-1 space-y-4">
-                <div class="bg-blue-50 p-4 rounded border border-blue-200">
-                    <h4 class="font-bold text-blue-900 mb-2">Step 1: Create the Script</h4>
-                    <ol class="list-decimal list-inside text-sm text-blue-800 space-y-1">
-                        <li>Open your Google Sheet</li>
-                        <li>Click <b>Extensions → Apps Script</b></li>
-                        <li>Delete the default <code>myFunction</code></li>
-                        <li>Paste the code from the Data Hub below</li>
-                    </ol>
-                </div>
-                <div class="bg-green-50 p-4 rounded border border-green-200">
-                    <h4 class="font-bold text-green-900 mb-2">Step 2: Deploy as Web App</h4>
-                    <ol class="list-decimal list-inside text-sm text-green-800 space-y-1">
-                        <li>Click <b>Deploy → New Deployment</b></li>
-                        <li>Select type: <b>Web App</b></li>
-                        <li><b>Execute as:</b> Me</li>
-                        <li><b>Who has access:</b> Anyone</li>
-                        <li>Click <b>Deploy</b> and authorize</li>
-                        <li>Copy the Web App URL</li>
-                    </ol>
-                </div>
-                <div class="bg-purple-50 p-4 rounded border border-purple-200">
-                    <h4 class="font-bold text-purple-900 mb-2">Step 3: Connect to Platform</h4>
-                    <ol class="list-decimal list-inside text-sm text-purple-800 space-y-1">
-                        <li>Paste the URL in Builder → "Google Sheet URL"</li>
-                        <li>Click <b>Test Connection</b> to verify</li>
-                        <li>Export Online App and start collecting!</li>
-                    </ol>
-                </div>
             </div>
         </div>
     </div>
@@ -836,21 +686,7 @@
             async syncRecord(record) {
                 let success = false;
 
-                if (this.project.googleUrl) {
-                    try {
-                        const response = await fetch(this.project.googleUrl, {
-                            method: 'POST',
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify(record)
-                        });
-                        let result;
-                        try { result = await response.json(); } catch (e) { result = { success: response.ok }; }
-                        if (result.success || response.ok) success = true;
-                        else record._syncError = result.error || 'Sheet rejected';
-                    } catch (e) { record._syncError = 'Sheets: ' + e.message; }
-                }
-
-                if (!success && this.project.supabaseUrl) {
+                if (this.project.supabaseUrl) {
                     try {
                         const response = await fetch(this.project.supabaseUrl, {
                             method: 'POST',
@@ -866,6 +702,8 @@
                         else { const err = await response.text();
                             record._syncError = 'Supabase: ' + err; }
                     } catch (e) { record._syncError = 'Supabase: ' + e.message; }
+                } else {
+                    record._syncError = 'No cloud backend configured';
                 }
 
                 return success;
@@ -873,7 +711,7 @@
 
             async pullFromCloud() {
                 if (!this.project.supabaseUrl) {
-                    showToast('Supabase not configured for pull. Use Google Sheets as primary.', 'warning');
+                    showToast('Supabase not configured. Add your Supabase REST URL and API key in Cloud Backend Config.', 'warning');
                     return;
                 }
                 try {
@@ -956,21 +794,40 @@
         }
 
         // ==========================================
-        // 5. ENHANCED SPSS DATA ENGINE
+        // 5. ENHANCED SPSS DATA ENGINE (v19.0 - SPSS-Ready Pipeline)
         // ==========================================
         class SPSSDataEngine {
-            constructor() { this.codebook = {}; }
+            constructor() { 
+                this.codebook = {}; 
+                this.reverseItems = {};  // varName -> { maxValue, originalVar }
+                this.mrsets = {};        // mrsetName -> { label, variables }
+                this.systemVars = ['ParticipantID', 'SubmissionDate', 'Language', 'DurationSec'];
+            }
 
             sanitizeVarName(rawName, prefix) {
-                let cleanName = rawName.replace(/[^-]/g, "").replace(/[^a-zA-Z0-9_]/g, "_").replace(/_+/g, "_").replace(
+                let cleanName = String(rawName || '').replace(/[^a-zA-Z0-9_]/g, "_").replace(/_+/g, "_").replace(
                     /^_+|_+$/g, "");
                 if (!/^[a-zA-Z]/.test(cleanName)) cleanName = "var_" + cleanName;
                 cleanName = cleanName.substring(0, 64);
                 return prefix ? prefix + "_" + cleanName : cleanName;
             }
 
-            prepareDataForExport(answers, duration, projectConfig, participantId) {
+            prepareDataForExport(answers, duration, projectConfig, participantId, language = 'en') {
                 let flatRow = {};
+
+                // System variables (always included)
+                flatRow['ParticipantID'] = participantId || '';
+                flatRow['SubmissionDate'] = new Date().toISOString().split('T')[0];
+                flatRow['Language'] = language;
+                flatRow['DurationSec'] = duration || 0;
+
+                this.codebook['ParticipantID'] = { label: 'Participant ID', type: 'Nominal', format: 'A50', values: {}, variableType: 'String', columnWidth: 12, measurementLevel: 'Nominal', missingValue: '', missingValueSkip: '' };
+                this.codebook['SubmissionDate'] = { label: 'Submission Date', type: 'Scale', format: 'ADATE10', values: {}, variableType: 'Date', columnWidth: 10, measurementLevel: 'Scale', missingValue: '', missingValueSkip: '' };
+                this.codebook['Language'] = { label: 'Survey Language', type: 'Nominal', format: 'A2', values: { en: 'English', ar: 'Arabic' }, variableType: 'String', columnWidth: 2, measurementLevel: 'Nominal', missingValue: '', missingValueSkip: '' };
+                this.codebook['DurationSec'] = { label: 'Survey Duration (seconds)', type: 'Scale', format: 'F8.0', values: {}, variableType: 'Numeric', columnWidth: 8, measurementLevel: 'Scale', missingValue: '-99', missingValueSkip: '' };
+
+                this.reverseItems = {};
+                this.mrsets = {};
 
                 projectConfig.pages.forEach(function(page, pIdx) {
                     page.items.forEach(function(item, iIdx) {
@@ -978,76 +835,192 @@
                             "Item_" + iIdx), ("P" + (pIdx + 1)));
                         let value = answers[item.vName || item.id];
 
+                        // Determine measurement level from item metadata or auto-detect
+                        const measurementLevel = item.measurementLevel || this.autoDetectMeasurementLevel(item.type);
+                        const variableType = item.variableType || this.autoDetectVariableType(item.type);
+                        const decimals = item.decimals !== undefined ? item.decimals : this.autoDetectDecimals(item.type);
+                        const columnWidth = item.columnWidth !== undefined ? item.columnWidth : this.autoDetectColumnWidth(item.type);
+                        const missingValue = item.missingValue || (measurementLevel === 'Scale' || measurementLevel === 'Ordinal' ? '-99' : '');
+                        const missingValueSkip = item.missingValueSkip || (measurementLevel === 'Scale' || measurementLevel === 'Ordinal' ? '-98' : '');
+
+                        // Build format string based on variable type and decimals
+                        let format = this.buildFormat(variableType, decimals, item.type);
+
                         if (item.type === 'scale' || item.type === 'likert' || item.type === 'scale10') {
                             flatRow[varName] = value ? Number(value) : null;
                             this.codebook[varName] = {
                                 label: item.title_en || item.title,
-                                type: 'Ordinal',
-                                format: item.type === 'scale10' ? 'F2.0' : 'F8.0',
+                                type: measurementLevel,
+                                format: format,
                                 values: item.options ? item.options.reduce(function(acc, opt, idx) {
                                     acc[opt.value !== undefined ? opt.value : (idx + 1)] = opt
                                     .label_en || opt.text || opt.label;
                                     return acc;
-                                }, {}) : {}
+                                }, {}) : {},
+                                variableType: variableType,
+                                columnWidth: columnWidth,
+                                measurementLevel: measurementLevel,
+                                missingValue: missingValue,
+                                missingValueSkip: missingValueSkip,
+                                reverseScored: item.reverseScored || false,
+                                scaleMax: this.getScaleMax(item)
                             };
+
+                            // Track reverse-scored items for RECODE
+                            if (item.reverseScored) {
+                                const maxVal = this.getScaleMax(item);
+                                this.reverseItems[varName] = { maxValue: maxVal, originalVar: varName };
+                            }
                         } else if (item.type === 'number') {
                             flatRow[varName] = value !== undefined ? Number(value) : null;
-                            this.codebook[varName] = { label: item.title_en || item.title, type: 'Scale',
-                                format: 'F8.2', values: {} };
+                            this.codebook[varName] = { 
+                                label: item.title_en || item.title, 
+                                type: measurementLevel,
+                                format: format, 
+                                values: {},
+                                variableType: variableType,
+                                columnWidth: columnWidth,
+                                measurementLevel: measurementLevel,
+                                missingValue: missingValue,
+                                missingValueSkip: missingValueSkip
+                            };
                         } else if (item.type === 'text') {
                             flatRow[varName] = value ? String(value) : "";
-                            this.codebook[varName] = { label: item.title_en || item.title, type: 'Nominal',
-                                format: 'A255', values: {} };
+                            this.codebook[varName] = { 
+                                label: item.title_en || item.title, 
+                                type: 'Nominal',
+                                format: format, 
+                                values: {},
+                                variableType: 'String',
+                                columnWidth: columnWidth,
+                                measurementLevel: 'Nominal',
+                                missingValue: missingValue,
+                                missingValueSkip: missingValueSkip
+                            };
                         } else if (item.type === 'binary' || item.type === 'mcq') {
                             flatRow[varName] = value !== undefined ? Number(value) : null;
                             this.codebook[varName] = {
                                 label: item.title_en || item.title,
-                                type: 'Nominal',
-                                format: 'F8.0',
+                                type: measurementLevel,
+                                format: format,
                                 values: item.options ? item.options.reduce(function(acc, opt, idx) {
                                     acc[opt.value !== undefined ? opt.value : (idx + 1)] = opt
                                     .label_en || opt.text || opt.label;
                                     return acc;
-                                }, {}) : {}
+                                }, {}) : {},
+                                variableType: variableType,
+                                columnWidth: columnWidth,
+                                measurementLevel: measurementLevel,
+                                missingValue: missingValue,
+                                missingValueSkip: missingValueSkip
                             };
                         } else if (item.type === 'checkbox') {
                             let arr = Array.isArray(value) ? value : [];
+                            let checkboxVars = [];
                             (item.options || []).forEach(function(opt, oIdx) {
-                                let subVar = varName + '_' + (opt.value !== undefined ? opt.value : (oIdx +
-                                1));
-                                flatRow[subVar] = arr.includes(opt.value !== undefined ? opt.value : (
-                                    oIdx + 1)) ? 1 : 0;
+                                let subVar = varName + '_' + (opt.value !== undefined ? opt.value : (oIdx + 1));
+                                flatRow[subVar] = arr.includes(opt.value !== undefined ? opt.value : (oIdx + 1)) ? 1 : 0;
                                 this.codebook[subVar] = {
-                                    label: (item.title_en || item.title) + ' - ' + (opt.label_en || opt
-                                        .text || opt.label),
+                                    label: (item.title_en || item.title) + ' - ' + (opt.label_en || opt.text || opt.label),
                                     type: 'Nominal',
                                     format: 'F1.0',
-                                    values: { 0: 'Not Selected', 1: 'Selected' }
+                                    values: { 0: 'Not Selected', 1: 'Selected' },
+                                    variableType: 'Numeric',
+                                    columnWidth: 8,
+                                    measurementLevel: 'Nominal',
+                                    missingValue: '0',
+                                    missingValueSkip: '-98'
                                 };
+                                checkboxVars.push(subVar);
                             }.bind(this));
+
+                            // Track MRSET for checkbox items
+                            if (item.mrset && checkboxVars.length > 0) {
+                                const mrsetName = this.sanitizeVarName(varName + '_MRSET');
+                                this.mrsets[mrsetName] = {
+                                    label: item.title_en || item.title,
+                                    variables: checkboxVars,
+                                    countedValue: 1
+                                };
+                            }
                         } else if (item.type === 'signature' || item.type === 'camera') {
                             flatRow[varName] = value ? 1 : 0;
-                            this.codebook[varName] = { label: item.title_en || item.title, type: 'Nominal',
-                                format: 'F1.0', values: { 0: 'Not Captured', 1: 'Captured' } };
+                            this.codebook[varName] = { 
+                                label: item.title_en || item.title, 
+                                type: 'Nominal',
+                                format: 'F1.0', 
+                                values: { 0: 'Not Captured', 1: 'Captured' },
+                                variableType: 'Numeric',
+                                columnWidth: 8,
+                                measurementLevel: 'Nominal',
+                                missingValue: '0',
+                                missingValueSkip: '-98'
+                            };
                         }
                     }.bind(this));
                 }.bind(this));
                 return flatRow;
             }
 
-            generateSPSSSyntax(projectConfig) {
-                let syntax = "* SPSS Syntax generated by Clinical Data Dashboard v18.0;\n";
-                syntax += "* Project: " + (projectConfig.name || 'Untitled') + ";\n";
-                syntax += "* Generated: " + new Date().toISOString() + ";\n\n";
+            autoDetectMeasurementLevel(type) {
+                if (type === 'number') return 'Scale';
+                if (type === 'likert' || type === 'scale' || type === 'scale10') return 'Ordinal';
+                return 'Nominal';
+            }
 
+            autoDetectVariableType(type) {
+                if (type === 'text') return 'String';
+                if (type === 'number' || type === 'likert' || type === 'scale' || type === 'scale10' || type === 'binary' || type === 'mcq' || type === 'checkbox' || type === 'signature' || type === 'camera') return 'Numeric';
+                return 'String';
+            }
+
+            autoDetectDecimals(type) {
+                if (type === 'number') return 2;
+                if (type === 'scale10') return 0;
+                return 0;
+            }
+
+            autoDetectColumnWidth(type) {
+                if (type === 'text') return 50;
+                if (type === 'number') return 10;
+                if (type === 'scale10') return 8;
+                return 8;
+            }
+
+            buildFormat(variableType, decimals, itemType) {
+                if (variableType === 'String') return 'A255';
+                if (variableType === 'Date') return 'ADATE10';
+                if (itemType === 'scale10') return 'F2.0';
+                if (itemType === 'number') return 'F8.' + decimals;
+                if (itemType === 'checkbox' || itemType === 'signature' || itemType === 'camera') return 'F1.0';
+                return 'F8.0';
+            }
+
+            getScaleMax(item) {
+                if (item.options && item.options.length > 0) {
+                    const values = item.options.map(o => o.value !== undefined ? o.value : 0).filter(v => !isNaN(v));
+                    return Math.max(...values);
+                }
+                if (item.type === 'scale10') return 10;
+                if (item.type === 'likert' && item.options) return item.options.length;
+                return 5;
+            }
+
+            generateSPSSSyntax(projectConfig) {
+                let syntax = "* SPSS Syntax generated by Clinical Data Dashboard v19.0 (SPSS-Ready Pipeline);\n";
+                syntax += "* Project: " + (projectConfig.name || 'Untitled') + ";\n";
+                syntax += "* Generated: " + new Date().toISOString() + ";\n";
+                syntax += "* Records: " + (projectConfig._recordCount || 'N/A') + ";\n\n";
+
+                // 1. VARIABLE LABELS
                 syntax += "* 1. VARIABLE LABELS;\n";
                 for (const varName in this.codebook) {
                     const meta = this.codebook[varName];
-                    syntax += 'VARIABLE LABELS ' + varName + ' "' + (meta.label || varName).replace(/"/g, '""') +
-                    '".\n';
+                    syntax += 'VARIABLE LABELS ' + varName + ' "' + (meta.label || varName).replace(/"/g, '""') + '".\n';
                 }
                 syntax += "EXECUTE.\n\n";
 
+                // 2. VALUE LABELS
                 syntax += "* 2. VALUE LABELS;\n";
                 for (const varName in this.codebook) {
                     const meta = this.codebook[varName];
@@ -1060,6 +1033,7 @@
                 }
                 syntax += "EXECUTE.\n\n";
 
+                // 3. VARIABLE FORMATS
                 syntax += "* 3. VARIABLE FORMATS;\n";
                 for (const varName in this.codebook) {
                     const meta = this.codebook[varName];
@@ -1069,23 +1043,81 @@
                 }
                 syntax += "EXECUTE.\n\n";
 
-                syntax += "* 4. MEASUREMENT LEVELS;\n";
+                // 4. VARIABLE WIDTH (column width)
+                syntax += "* 4. VARIABLE WIDTH;\n";
                 for (const varName in this.codebook) {
                     const meta = this.codebook[varName];
-                    syntax += 'VARIABLE LEVEL ' + varName + ' (' + (meta.type || 'NOMINAL') + ').\n';
-                }
-                syntax += "EXECUTE.\n\n";
-
-                syntax += "* 5. MISSING VALUES;\n";
-                for (const varName in this.codebook) {
-                    const meta = this.codebook[varName];
-                    if (meta.type === 'Scale' || meta.type === 'Ordinal') {
-                        syntax += 'MISSING VALUES ' + varName + ' (-99).\n';
+                    if (meta.columnWidth) {
+                        syntax += 'VARIABLE WIDTH ' + varName + ' (' + meta.columnWidth + ').\n';
                     }
                 }
                 syntax += "EXECUTE.\n\n";
 
-                syntax += "* 6. SCALE COMPUTATIONS;\n";
+                // 5. VARIABLE ALIGNMENT (left for strings, right for numeric)
+                syntax += "* 5. VARIABLE ALIGNMENT;\n";
+                for (const varName in this.codebook) {
+                    const meta = this.codebook[varName];
+                    const align = meta.variableType === 'String' ? 'LEFT' : 'RIGHT';
+                    syntax += 'VARIABLE ALIGNMENT ' + varName + ' (' + align + ').\n';
+                }
+                syntax += "EXECUTE.\n\n";
+
+                // 6. VARIABLE ROLE (Input for analysis variables, Both for system vars)
+                syntax += "* 6. VARIABLE ROLE;\n";
+                for (const varName in this.codebook) {
+                    const meta = this.codebook[varName];
+                    const role = this.systemVars.includes(varName) ? 'BOTH' : 'INPUT';
+                    syntax += 'VARIABLE ROLE ' + varName + ' (' + role + ').\n';
+                }
+                syntax += "EXECUTE.\n\n";
+
+                // 7. MEASUREMENT LEVELS
+                syntax += "* 7. MEASUREMENT LEVELS;\n";
+                for (const varName in this.codebook) {
+                    const meta = this.codebook[varName];
+                    syntax += 'VARIABLE LEVEL ' + varName + ' (' + (meta.measurementLevel || meta.type || 'NOMINAL') + ').\n';
+                }
+                syntax += "EXECUTE.\n\n";
+
+                // 8. MISSING VALUES (with skip-logic support)
+                syntax += "* 8. MISSING VALUES;\n";
+                for (const varName in this.codebook) {
+                    const meta = this.codebook[varName];
+                    const missingVals = [];
+                    if (meta.missingValue) missingVals.push(meta.missingValue);
+                    if (meta.missingValueSkip) missingVals.push(meta.missingValueSkip);
+                    if (missingVals.length > 0) {
+                        syntax += 'MISSING VALUES ' + varName + ' (' + missingVals.join(' ') + ').\n';
+                    }
+                }
+                syntax += "EXECUTE.\n\n";
+
+                // 9. RECODE REVERSE-SCORED ITEMS (before scale computation)
+                if (Object.keys(this.reverseItems).length > 0) {
+                    syntax += "* 9. RECODE REVERSE-SCORED ITEMS;\n";
+                    for (const varName in this.reverseItems) {
+                        const rev = this.reverseItems[varName];
+                        const recodedName = varName + '_R';
+                        syntax += 'RECODE ' + varName + ' ';
+                        // Generate recode mapping: 1->max, 2->max-1, etc.
+                        const mappings = [];
+                        for (let v = 1; v <= rev.maxValue; v++) {
+                            mappings.push(v + '=' + (rev.maxValue - v + 1));
+                        }
+                        syntax += mappings.join(' ') + ' INTO ' + recodedName + '.\n';
+                        syntax += 'VARIABLE LABELS ' + recodedName + ' "Recoded (reversed): ' + this.codebook[varName].label + '".\n';
+                        syntax += 'VARIABLE LEVEL ' + recodedName + ' (ORDINAL).\n';
+                        syntax += 'FORMATS ' + recodedName + ' (F8.0).\n';
+                        // Update the codebook to use recoded variable for scale computation
+                        this.codebook[recodedName] = { ...this.codebook[varName], label: 'Recoded (reversed): ' + this.codebook[varName].label };
+                        // Replace in scales later
+                        this.reverseItems[varName].recodedName = recodedName;
+                    }
+                    syntax += "EXECUTE.\n\n";
+                }
+
+                // 10. SCALE COMPUTATIONS (using recoded variables where applicable)
+                syntax += "* 10. SCALE COMPUTATIONS;\n";
                 let scales = {};
                 if (projectConfig && projectConfig.pages) {
                     projectConfig.pages.forEach(function(page) {
@@ -1095,10 +1127,15 @@
                                 item.scale !== 'Consent' && item.scale !== 'Documentation' &&
                                 ['number', 'scale', 'likert', 'scale10'].includes(item.type)) {
                                 if (!scales[item.scale]) scales[item.scale] = [];
-                                scales[item.scale].push(item.vName || item.id);
+                                let varName = item.vName || item.id;
+                                // Use recoded variable if reverse-scored
+                                if (this.reverseItems[varName] && this.reverseItems[varName].recodedName) {
+                                    varName = this.reverseItems[varName].recodedName;
+                                }
+                                scales[item.scale].push(varName);
                             }
-                        });
-                    });
+                        }.bind(this));
+                    }.bind(this));
                 }
 
                 for (const scaleName in scales) {
@@ -1110,11 +1147,29 @@
                     syntax += 'VARIABLE LABELS ' + cleanName + '_Mean "Mean Score for ' + scaleName + '".\n';
                     syntax += 'FORMATS ' + cleanName + '_Total ' + cleanName + '_Mean (F8.2).\n';
                     syntax += 'VARIABLE LEVEL ' + cleanName + '_Total ' + cleanName + '_Mean (SCALE).\n';
+                    syntax += 'VARIABLE ROLE ' + cleanName + '_Total ' + cleanName + '_Mean (INPUT).\n';
                     syntax += '\n';
                 }
                 syntax += "EXECUTE.\n\n";
 
-                syntax += "* 7. RELIABILITY ANALYSIS (Cronbach's Alpha);\n";
+                // 11. MULTIPLE RESPONSE SETS (MRSET)
+                if (Object.keys(this.mrsets).length > 0) {
+                    syntax += "* 11. MULTIPLE RESPONSE SETS;\n";
+                    for (const mrsetName in this.mrsets) {
+                        const mrset = this.mrsets[mrsetName];
+                        const vars = mrset.variables.join(' ');
+                        syntax += 'MRSETS\n';
+                        syntax += '  /MDGROUP NAME=$' + mrsetName + '\n';
+                        syntax += '    LABEL="' + mrset.label.replace(/"/g, '""') + '"\n';
+                        syntax += '    VARIABLES=' + vars + '\n';
+                        syntax += '    VALUE=' + mrset.countedValue + '\n';
+                        syntax += '    MISSING=EXCLUDE.\n';
+                    }
+                    syntax += "EXECUTE.\n\n";
+                }
+
+                // 12. RELIABILITY ANALYSIS (Cronbach's Alpha)
+                syntax += "* 12. RELIABILITY ANALYSIS (Cronbach's Alpha);\n";
                 for (const scaleName in scales) {
                     const vars = scales[scaleName].join(' ');
                     syntax += 'RELIABILITY VARIABLES=' + vars + '\n';
@@ -1123,7 +1178,116 @@
                     syntax += '  /SUMMARY=TOTAL.\n\n';
                 }
 
+                // 13. FREQUENCIES FOR QUICK CHECK
+                syntax += "* 13. QUICK FREQUENCY CHECK (first 20 variables);\n";
+                const varNames = Object.keys(this.codebook).slice(0, 20);
+                if (varNames.length > 0) {
+                    syntax += 'FREQUENCIES VARIABLES=' + varNames.join(' ') + '\n';
+                    syntax += '  /FORMAT=NOTABLE\n';
+                    syntax += '  /STATISTICS=MEAN STDDEV MIN MAX.\n\n';
+                }
+
                 return syntax;
+            }
+
+            // Generate CSV with UTF-8 BOM
+            generateCSV(records, projectConfig) {
+                if (records.length === 0) return '';
+                
+                const engine = new SPSSDataEngine();
+                let allRows = [];
+                records.forEach(function(rec) {
+                    const row = engine.prepareDataForExport(rec.answers, rec.answers._duration_sec, projectConfig, rec.participantId, rec.answers._language || 'en');
+                    allRows.push(row);
+                });
+
+                if (allRows.length === 0) return '';
+
+                const headers = Object.keys(allRows[0]);
+                let csv = '\uFEFF' + headers.join(',') + '\n'; // UTF-8 BOM
+                allRows.forEach(function(row) {
+                    const line = headers.map(function(h) {
+                        let val = row[h];
+                        if (val === null || val === undefined) return '';
+                        val = String(val).replace(/"/g, '""');
+                        return '"' + val + '"';
+                    });
+                    csv += line.join(',') + '\n';
+                });
+                return csv;
+            }
+
+            // Generate codebook for Excel export
+            generateCodebook() {
+                const rows = [['Variable Name', 'Variable Label', 'Variable Type', 'Measurement Level', 'Format', 'Column Width', 'Alignment', 'Role', 'Missing Values', 'Missing (Skip Logic)', 'Value Labels']];
+                for (const varName in this.codebook) {
+                    const meta = this.codebook[varName];
+                    const valueLabels = Object.entries(meta.values || {}).map(e => e[0] + '=' + e[1]).join('; ');
+                    const missingVals = [];
+                    if (meta.missingValue) missingVals.push(meta.missingValue);
+                    if (meta.missingValueSkip) missingVals.push(meta.missingValueSkip + ' (skip logic)');
+                    rows.push([
+                        varName,
+                        meta.label || '',
+                        meta.variableType || '',
+                        meta.measurementLevel || meta.type || '',
+                        meta.format || '',
+                        meta.columnWidth || '',
+                        meta.variableType === 'String' ? 'LEFT' : 'RIGHT',
+                        this.systemVars.includes(varName) ? 'BOTH' : 'INPUT',
+                        meta.missingValue || '',
+                        meta.missingValueSkip || '',
+                        valueLabels
+                    ]);
+                }
+                return rows;
+            }
+
+            // Pre-flight syntax validation
+            validateSyntax(syntax) {
+                const errors = [];
+                const lines = syntax.split('\n');
+                let inBlock = false;
+                let blockType = '';
+                
+                lines.forEach((line, idx) => {
+                    const trimmed = line.trim();
+                    if (trimmed.startsWith('*') || trimmed === '') return;
+                    
+                    // Check for balanced quotes
+                    const quoteCount = (line.match(/"/g) || []).length;
+                    if (quoteCount % 2 !== 0) {
+                        errors.push('Line ' + (idx + 1) + ': Unbalanced quotes');
+                    }
+                    
+                    // Check for EXECUTE after command blocks
+                    if (trimmed.match(/^(VARIABLE|VALUE|FORMATS|MISSING|COMPUTE|RECODE|MRSETS|RELIABILITY|FREQUENCIES)/i)) {
+                        inBlock = true;
+                        blockType = trimmed.split(' ')[0];
+                    }
+                    if (trimmed === 'EXECUTE.') {
+                        inBlock = false;
+                        blockType = '';
+                    }
+                });
+                
+                // Check for unclosed blocks
+                if (inBlock) {
+                    errors.push('Unclosed block: ' + blockType + ' (missing EXECUTE.)');
+                }
+                
+                // Check for duplicate VARIABLE LABELS
+                const varLabels = syntax.match(/VARIABLE LABELS\s+(\w+)/g);
+                if (varLabels) {
+                    const seen = new Set();
+                    varLabels.forEach(v => {
+                        const name = v.replace('VARIABLE LABELS ', '').trim();
+                        if (seen.has(name)) errors.push('Duplicate VARIABLE LABELS for: ' + name);
+                        seen.add(name);
+                    });
+                }
+                
+                return { valid: errors.length === 0, errors };
             }
         }
 
@@ -1140,7 +1304,6 @@
                 theme: '#2563eb',
                 font: "'Segoe UI', sans-serif",
                 pin: '',
-                googleUrl: '',
                 supabaseUrl: '',
                 supabaseKey: '',
                 en: { title: '', authors: '', welcome: '' },
@@ -1186,13 +1349,6 @@
         }
 
         function closeModal(id) { document.getElementById(id).classList.add('hidden'); }
-
-        function showAppsScriptGuide() { document.getElementById('modal-guide').classList.remove('hidden'); }
-
-        function copyAppsScript() {
-            const code = document.getElementById('apps-script-code').innerText;
-            navigator.clipboard.writeText(code).then(() => showToast('Apps Script code copied!', 'success'));
-        }
 
         // ==========================================
         // 8. BUILDER LOGIC
@@ -1385,6 +1541,55 @@
                         ',\'value\',this.value)" class="w-16 px-2 py-1 border rounded text-xs" placeholder="Value">' +
                         '</div>';
 
+                    // SPSS Metadata fields
+                    let spssMetaHtml = '<div class="mt-2 p-3 bg-purple-50 rounded border border-purple-100 space-y-2">' +
+                        '<h4 class="text-xs font-bold text-purple-800 uppercase tracking-wide">SPSS Variable Properties</h4>' +
+                        '<div class="grid grid-cols-1 md:grid-cols-3 gap-2">' +
+                        '<div>' +
+                        '<label class="block text-xs font-medium text-gray-500 mb-1">Measurement Level</label>' +
+                        '<select onchange="updateItemField(' + pIdx + ',' + iIdx + ',\'measurementLevel\',this.value)" class="w-full px-2 py-1 border rounded text-xs">' +
+                        '<option value="Nominal" ' + (item.measurementLevel === 'Nominal' ? 'selected' : '') + '>Nominal</option>' +
+                        '<option value="Ordinal" ' + (item.measurementLevel === 'Ordinal' ? 'selected' : '') + '>Ordinal</option>' +
+                        '<option value="Scale" ' + (item.measurementLevel === 'Scale' ? 'selected' : '') + '>Scale</option>' +
+                        '</select>' +
+                        '</div>' +
+                        '<div>' +
+                        '<label class="block text-xs font-medium text-gray-500 mb-1">Variable Type</label>' +
+                        '<select onchange="updateItemField(' + pIdx + ',' + iIdx + ',\'variableType\',this.value)" class="w-full px-2 py-1 border rounded text-xs">' +
+                        '<option value="Numeric" ' + (item.variableType === 'Numeric' ? 'selected' : '') + '>Numeric</option>' +
+                        '<option value="String" ' + (item.variableType === 'String' ? 'selected' : '') + '>String</option>' +
+                        '<option value="Date" ' + (item.variableType === 'Date' ? 'selected' : '') + '>Date</option>' +
+                        '</select>' +
+                        '</div>' +
+                        '<div>' +
+                        '<label class="block text-xs font-medium text-gray-500 mb-1">Decimals</label>' +
+                        '<input type="number" value="' + (item.decimals !== undefined ? item.decimals : 0) + '" min="0" max="16" onchange="updateItemField(' + pIdx + ',' + iIdx + ',\'decimals\',Number(this.value))" class="w-full px-2 py-1 border rounded text-xs">' +
+                        '</div>' +
+                        '<div>' +
+                        '<label class="block text-xs font-medium text-gray-500 mb-1">Column Width</label>' +
+                        '<input type="number" value="' + (item.columnWidth !== undefined ? item.columnWidth : 8) + '" min="1" max="255" onchange="updateItemField(' + pIdx + ',' + iIdx + ',\'columnWidth\',Number(this.value))" class="w-full px-2 py-1 border rounded text-xs">' +
+                        '</div>' +
+                        '<div>' +
+                        '<label class="block text-xs font-medium text-gray-500 mb-1">Missing Value (User)</label>' +
+                        '<input type="text" value="' + esc(item.missingValue || '-99') + '" onchange="updateItemField(' + pIdx + ',' + iIdx + ',\'missingValue\',this.value)" class="w-full px-2 py-1 border rounded text-xs" placeholder="-99">' +
+                        '</div>' +
+                        '<div>' +
+                        '<label class="block text-xs font-medium text-gray-500 mb-1">Missing Value (Skip Logic)</label>' +
+                        '<input type="text" value="' + esc(item.missingValueSkip || '-98') + '" onchange="updateItemField(' + pIdx + ',' + iIdx + ',\'missingValueSkip\',this.value)" class="w-full px-2 py-1 border rounded text-xs" placeholder="-98">' +
+                        '</div>' +
+                        '<div class="md:col-span-3 flex items-center gap-2">' +
+                        '<label class="flex items-center gap-1 text-xs cursor-pointer">' +
+                        '<input type="checkbox" ' + (item.reverseScored ? 'checked' : '') + ' onchange="updateItemField(' + pIdx + ',' + iIdx + ',\'reverseScored\',this.checked)" class="w-4 h-4">' +
+                        '<span class="font-medium text-purple-800">Reverse Scored (for scale computations)</span>' +
+                        '</label>' +
+                        '<label class="flex items-center gap-1 text-xs cursor-pointer ml-4">' +
+                        '<input type="checkbox" ' + (item.mrset ? 'checked' : '') + ' onchange="updateItemField(' + pIdx + ',' + iIdx + ',\'mrset\',this.checked)" class="w-4 h-4">' +
+                        '<span class="font-medium text-purple-800">Multiple Response Set (checkbox only)</span>' +
+                        '</label>' +
+                        '</div>' +
+                        '</div>' +
+                        '</div>';
+
                     return '<div class="item-card p-3 bg-white rounded border shadow-sm">' +
                         '<div class="flex justify-between items-start mb-2">' +
                         '<div class="flex-1 grid grid-cols-1 md:grid-cols-2 gap-2">' +
@@ -1452,7 +1657,6 @@
         // ==========================================
         function saveProject() {
             appState.project.name = document.getElementById('project-name-display').innerText;
-            appState.project.googleUrl = document.getElementById('cfg-google-url').value;
             appState.project.supabaseUrl = document.getElementById('cfg-supabase-url').value;
             appState.project.supabaseKey = document.getElementById('cfg-supabase-key').value;
             appState.project.pin = document.getElementById('cfg-pin').value;
@@ -1478,7 +1682,6 @@
                         theme: '#2563eb',
                         font: "'Segoe UI', sans-serif",
                         pin: '',
-                        googleUrl: '',
                         supabaseUrl: '',
                         supabaseKey: '',
                         en: { title: '', authors: '', welcome: '' },
@@ -1491,7 +1694,6 @@
                 document.getElementById('cfg-theme').value = '#2563eb';
                 document.getElementById('cfg-font').value = "'Segoe UI', sans-serif";
                 document.getElementById('cfg-pin').value = '';
-                document.getElementById('cfg-google-url').value = '';
                 document.getElementById('cfg-supabase-url').value = '';
                 document.getElementById('cfg-supabase-key').value = '';
                 ['en', 'ar'].forEach(function(lang) {
@@ -1524,21 +1726,18 @@
             reader.readAsText(file);
         }
 
-        async function testGoogleSheetConnection() {
-            const url = document.getElementById('cfg-google-url').value;
-            if (!url) return showToast('Please enter a Google Sheet URL first.', 'error');
+        async function testSupabaseConnection() {
+            const url = document.getElementById('cfg-supabase-url').value;
+            const key = document.getElementById('cfg-supabase-key').value;
+            if (!url) return showToast('Please enter a Supabase REST URL first.', 'error');
             showToast('Testing connection...', 'info');
             try {
                 const response = await fetch(url, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ test: true, timestamp: Date.now() })
+                    method: 'GET',
+                    headers: { 'apikey': key || '', 'Authorization': 'Bearer ' + (key || '') }
                 });
-                let result;
-                try { result = await response.json(); } catch (e) { result = { success: response.ok }; }
-                if (result.success || response.ok) showToast('Connection successful! Google Sheets is ready.',
-                'success');
-                else showToast('Connection failed: ' + (result.error || 'Unknown'), 'error');
+                if (response.ok) showToast('Connection successful! Supabase is ready.', 'success');
+                else showToast('Connection failed: HTTP ' + response.status, 'error');
             } catch (e) { showToast('Connection error: ' + e.message, 'error'); }
         }
 
@@ -2220,7 +2419,7 @@
         function toast(msg,type){var t=document.createElement('div');t.className='toast toast-'+type;t.textContent=msg;document.body.appendChild(t);setTimeout(function(){t.classList.add('show')},10);setTimeout(function(){t.classList.remove('show');setTimeout(function(){t.remove()},300)},3000)}
         function updConn(){var d=document.getElementById('conn-dot'),x=document.getElementById('conn-text');if(navigator.onLine){d.className='sync-indicator sync-dot-synced';x.textContent='Online'}else{d.className='sync-indicator sync-dot-failed';x.textContent='Offline'}}
         window.addEventListener('online',function(){updConn();if(isOnlineMode)processQueue()});window.addEventListener('offline',updConn);
-        async function processQueue(){if(!navigator.onLine||!isOnlineMode)return;var pending=await qAll();if(pending.length===0)return;toast('Syncing '+pending.length+'...','info');for(var rec of pending){try{var r=await fetch(proj.googleUrl,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(rec)});var j=await r.json();if(j.success||r.ok){rec._syncStatus='synced';await subPut(rec);await qDel(rec.id)}}catch(e){}}updDash();}
+        async function processQueue(){if(!navigator.onLine||!isOnlineMode||!proj.supabaseUrl)return;var pending=await qAll();if(pending.length===0)return;toast('Syncing '+pending.length+'...','info');for(var rec of pending){try{var r=await fetch(proj.supabaseUrl,{method:'POST',headers:{'Content-Type':'application/json','apikey':proj.supabaseKey||'','Authorization':'Bearer '+(proj.supabaseKey||''),'Prefer':'resolution=merge-duplicates'},body:JSON.stringify(rec)});if(r.ok){rec._syncStatus='synced';await subPut(rec);await qDel(rec.id)}}catch(e){}}updDash();}
         function goTo(id){['intro','int','dash'].forEach(function(x){document.getElementById('v-'+x).classList.add('hidden')});document.getElementById('v-'+id).classList.remove('hidden');if(id==='intro'){var l=proj[lang];document.getElementById('in-title').textContent=l.title||'';document.getElementById('in-authors').textContent=l.authors||'';document.getElementById('in-welcome').textContent=l.welcome||''}}
         var editId = null;
         function startInt(){pg=0;st=Date.now();editId=null;ren()}
@@ -2234,7 +2433,7 @@
         function nxt(){if(val()){pg++;ren();window.scrollTo(0,0)}}function prv(){pg--;ren();window.scrollTo(0,0)}
         function initSigs(){proj.pages[pg].items.filter(function(q){return q.type==='signature'}).forEach(function(q){var c=document.getElementById('sig-'+q.id);if(!c)return;var x=c.getContext('2d'),d=false;function gp(e){var r=c.getBoundingClientRect();return{x:(e.touches?e.touches[0].clientX:e.clientX)-r.left,y:(e.touches?e.touches[0].clientY:e.clientY)-r.top}}function sd(e){d=true;var p=gp(e);x.beginPath();x.moveTo(p.x,p.y);e.preventDefault()}function dr(e){if(!d)return;var p=gp(e);x.lineTo(p.x,p.y);x.stroke();e.preventDefault()}function ed(e){d=false;ans[q.vName||q.id]=c.toDataURL();e.preventDefault()}c.addEventListener('mousedown',sd);c.addEventListener('mousemove',dr);c.addEventListener('mouseup',ed);c.addEventListener('mouseout',ed);c.addEventListener('touchstart',sd);c.addEventListener('touchmove',dr);c.addEventListener('touchend',ed)})}
         window.cls=function(id,vn){var c=document.getElementById('sig-'+id);if(c){c.getContext('2d').clearRect(0,0,c.width,c.height);delete ans[vn]}}
-        async function sav(){if(!val())return;ans._duration_sec=Math.round((Date.now()-st)/1000);var rec={id:editId||(crypto.randomUUID?crypto.randomUUID():'rec_'+Date.now()),participantId:pid,projectId:proj.id,timestamp:Date.now(),answers:ans,_syncStatus:'pending'};var wasEdit=!!editId;editId=null;await subPut(rec);if(isOnlineMode&&navigator.onLine&&proj.googleUrl){try{await fetch(proj.googleUrl,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(rec)});rec._syncStatus='synced';await subPut(rec);toast(wasEdit?'Record updated & synced!':'Saved & synced!','success')}catch(e){await qPut(rec);toast(wasEdit?'Updated locally. Will sync.':'Saved locally. Will sync.','warning')}}else{toast(wasEdit?'Record updated.':'Saved locally.','success')}ans={};pid='';document.getElementById('p-id').value='';pg=0;goTo('intro')}
+        async function sav(){if(!val())return;ans._duration_sec=Math.round((Date.now()-st)/1000);var rec={id:editId||(crypto.randomUUID?crypto.randomUUID():'rec_'+Date.now()),participantId:pid,projectId:proj.id,timestamp:Date.now(),answers:ans,_syncStatus:'pending'};var wasEdit=!!editId;editId=null;await subPut(rec);if(isOnlineMode&&navigator.onLine&&proj.supabaseUrl){try{await fetch(proj.supabaseUrl,{method:'POST',headers:{'Content-Type':'application/json','apikey':proj.supabaseKey||'','Authorization':'Bearer '+(proj.supabaseKey||''),'Prefer':'resolution=merge-duplicates'},body:JSON.stringify(rec)});rec._syncStatus='synced';await subPut(rec);toast(wasEdit?'Record updated & synced!':'Saved & synced!','success')}catch(e){await qPut(rec);toast(wasEdit?'Updated locally. Will sync.':'Saved locally. Will sync.','warning')}}else{toast(wasEdit?'Record updated.':'Saved locally.','success')}ans={};pid='';document.getElementById('p-id').value='';pg=0;goTo('intro')}
         function checkPin(){var c=prompt('Enter PIN:');if(c===proj.pin){goTo('dash');updDash()}else if(c!==null)alert('Access Denied')}
         async function updDash(){var d=await subAll();document.getElementById('d-count').textContent=d.length;var s=d.filter(function(r){return r._syncStatus==='synced'}).length;var p=d.length-s;document.getElementById('d-synced').textContent=s;document.getElementById('d-pending').textContent=p;var l=document.getElementById('d-list');l.innerHTML=d.length===0?'<p class="text-center text-gray-500 py-4">No data.</p>':d.map(function(x){return '<div class="p-3 border rounded flex justify-between items-center"><div><span class="font-bold">'+esc(x.participantId)+'</span><span class="text-xs text-gray-500 ml-2">'+new Date(x.timestamp).toLocaleString()+'</span></div><div class="flex gap-2"><button data-act="edt" data-id="'+x.id+'" class="text-xs bg-yellow-100 text-yellow-700 px-2 py-1 rounded">Edit</button><button data-act="del" data-id="'+x.id+'" class="text-xs bg-red-100 text-red-700 px-2 py-1 rounded">Delete</button></div></div>'}).join('')}
         document.addEventListener('click',function(e){var el=e.target.closest&&e.target.closest('[data-act="edt"],[data-act="del"]');if(!el)return;var id=el.getAttribute('data-id');if(el.getAttribute('data-act')==='edt')edt(id);else del(id)});
@@ -2376,7 +2575,6 @@
                     document.getElementById('cfg-theme').value = appState.project.theme;
                     document.getElementById('cfg-font').value = appState.project.font;
                     document.getElementById('cfg-pin').value = appState.project.pin || '';
-                    document.getElementById('cfg-google-url').value = appState.project.googleUrl || '';
                     document.getElementById('cfg-supabase-url').value = appState.project.supabaseUrl || '';
                     document.getElementById('cfg-supabase-key').value = appState.project.supabaseKey || '';
 
@@ -2398,4 +2596,3 @@
     </script>
 </body>
 </html>
-```
