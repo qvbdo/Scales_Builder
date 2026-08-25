@@ -794,40 +794,21 @@
         }
 
         // ==========================================
-        // 5. ENHANCED SPSS DATA ENGINE (v19.0 - SPSS-Ready Pipeline)
+        // 5. ENHANCED SPSS DATA ENGINE
         // ==========================================
         class SPSSDataEngine {
-            constructor() { 
-                this.codebook = {}; 
-                this.reverseItems = {};  // varName -> { maxValue, originalVar }
-                this.mrsets = {};        // mrsetName -> { label, variables }
-                this.systemVars = ['ParticipantID', 'SubmissionDate', 'Language', 'DurationSec'];
-            }
+            constructor() { this.codebook = {}; }
 
             sanitizeVarName(rawName, prefix) {
-                let cleanName = String(rawName || '').replace(/[^a-zA-Z0-9_]/g, "_").replace(/_+/g, "_").replace(
+                let cleanName = rawName.replace(/[^-]/g, "").replace(/[^a-zA-Z0-9_]/g, "_").replace(/_+/g, "_").replace(
                     /^_+|_+$/g, "");
                 if (!/^[a-zA-Z]/.test(cleanName)) cleanName = "var_" + cleanName;
                 cleanName = cleanName.substring(0, 64);
                 return prefix ? prefix + "_" + cleanName : cleanName;
             }
 
-            prepareDataForExport(answers, duration, projectConfig, participantId, language = 'en') {
+            prepareDataForExport(answers, duration, projectConfig, participantId) {
                 let flatRow = {};
-
-                // System variables (always included)
-                flatRow['ParticipantID'] = participantId || '';
-                flatRow['SubmissionDate'] = new Date().toISOString().split('T')[0];
-                flatRow['Language'] = language;
-                flatRow['DurationSec'] = duration || 0;
-
-                this.codebook['ParticipantID'] = { label: 'Participant ID', type: 'Nominal', format: 'A50', values: {}, variableType: 'String', columnWidth: 12, measurementLevel: 'Nominal', missingValue: '', missingValueSkip: '' };
-                this.codebook['SubmissionDate'] = { label: 'Submission Date', type: 'Scale', format: 'ADATE10', values: {}, variableType: 'Date', columnWidth: 10, measurementLevel: 'Scale', missingValue: '', missingValueSkip: '' };
-                this.codebook['Language'] = { label: 'Survey Language', type: 'Nominal', format: 'A2', values: { en: 'English', ar: 'Arabic' }, variableType: 'String', columnWidth: 2, measurementLevel: 'Nominal', missingValue: '', missingValueSkip: '' };
-                this.codebook['DurationSec'] = { label: 'Survey Duration (seconds)', type: 'Scale', format: 'F8.0', values: {}, variableType: 'Numeric', columnWidth: 8, measurementLevel: 'Scale', missingValue: '-99', missingValueSkip: '' };
-
-                this.reverseItems = {};
-                this.mrsets = {};
 
                 projectConfig.pages.forEach(function(page, pIdx) {
                     page.items.forEach(function(item, iIdx) {
@@ -835,192 +816,76 @@
                             "Item_" + iIdx), ("P" + (pIdx + 1)));
                         let value = answers[item.vName || item.id];
 
-                        // Determine measurement level from item metadata or auto-detect
-                        const measurementLevel = item.measurementLevel || this.autoDetectMeasurementLevel(item.type);
-                        const variableType = item.variableType || this.autoDetectVariableType(item.type);
-                        const decimals = item.decimals !== undefined ? item.decimals : this.autoDetectDecimals(item.type);
-                        const columnWidth = item.columnWidth !== undefined ? item.columnWidth : this.autoDetectColumnWidth(item.type);
-                        const missingValue = item.missingValue || (measurementLevel === 'Scale' || measurementLevel === 'Ordinal' ? '-99' : '');
-                        const missingValueSkip = item.missingValueSkip || (measurementLevel === 'Scale' || measurementLevel === 'Ordinal' ? '-98' : '');
-
-                        // Build format string based on variable type and decimals
-                        let format = this.buildFormat(variableType, decimals, item.type);
-
                         if (item.type === 'scale' || item.type === 'likert' || item.type === 'scale10') {
                             flatRow[varName] = value ? Number(value) : null;
                             this.codebook[varName] = {
                                 label: item.title_en || item.title,
-                                type: measurementLevel,
-                                format: format,
+                                type: 'Ordinal',
+                                format: item.type === 'scale10' ? 'F2.0' : 'F8.0',
                                 values: item.options ? item.options.reduce(function(acc, opt, idx) {
                                     acc[opt.value !== undefined ? opt.value : (idx + 1)] = opt
                                     .label_en || opt.text || opt.label;
                                     return acc;
-                                }, {}) : {},
-                                variableType: variableType,
-                                columnWidth: columnWidth,
-                                measurementLevel: measurementLevel,
-                                missingValue: missingValue,
-                                missingValueSkip: missingValueSkip,
-                                reverseScored: item.reverseScored || false,
-                                scaleMax: this.getScaleMax(item)
+                                }, {}) : {}
                             };
-
-                            // Track reverse-scored items for RECODE
-                            if (item.reverseScored) {
-                                const maxVal = this.getScaleMax(item);
-                                this.reverseItems[varName] = { maxValue: maxVal, originalVar: varName };
-                            }
                         } else if (item.type === 'number') {
                             flatRow[varName] = value !== undefined ? Number(value) : null;
-                            this.codebook[varName] = { 
-                                label: item.title_en || item.title, 
-                                type: measurementLevel,
-                                format: format, 
-                                values: {},
-                                variableType: variableType,
-                                columnWidth: columnWidth,
-                                measurementLevel: measurementLevel,
-                                missingValue: missingValue,
-                                missingValueSkip: missingValueSkip
-                            };
+                            this.codebook[varName] = { label: item.title_en || item.title, type: 'Scale',
+                                format: 'F8.2', values: {} };
                         } else if (item.type === 'text') {
                             flatRow[varName] = value ? String(value) : "";
-                            this.codebook[varName] = { 
-                                label: item.title_en || item.title, 
-                                type: 'Nominal',
-                                format: format, 
-                                values: {},
-                                variableType: 'String',
-                                columnWidth: columnWidth,
-                                measurementLevel: 'Nominal',
-                                missingValue: missingValue,
-                                missingValueSkip: missingValueSkip
-                            };
+                            this.codebook[varName] = { label: item.title_en || item.title, type: 'Nominal',
+                                format: 'A255', values: {} };
                         } else if (item.type === 'binary' || item.type === 'mcq') {
                             flatRow[varName] = value !== undefined ? Number(value) : null;
                             this.codebook[varName] = {
                                 label: item.title_en || item.title,
-                                type: measurementLevel,
-                                format: format,
+                                type: 'Nominal',
+                                format: 'F8.0',
                                 values: item.options ? item.options.reduce(function(acc, opt, idx) {
                                     acc[opt.value !== undefined ? opt.value : (idx + 1)] = opt
                                     .label_en || opt.text || opt.label;
                                     return acc;
-                                }, {}) : {},
-                                variableType: variableType,
-                                columnWidth: columnWidth,
-                                measurementLevel: measurementLevel,
-                                missingValue: missingValue,
-                                missingValueSkip: missingValueSkip
+                                }, {}) : {}
                             };
                         } else if (item.type === 'checkbox') {
                             let arr = Array.isArray(value) ? value : [];
-                            let checkboxVars = [];
                             (item.options || []).forEach(function(opt, oIdx) {
-                                let subVar = varName + '_' + (opt.value !== undefined ? opt.value : (oIdx + 1));
-                                flatRow[subVar] = arr.includes(opt.value !== undefined ? opt.value : (oIdx + 1)) ? 1 : 0;
+                                let subVar = varName + '_' + (opt.value !== undefined ? opt.value : (oIdx +
+                                1));
+                                flatRow[subVar] = arr.includes(opt.value !== undefined ? opt.value : (
+                                    oIdx + 1)) ? 1 : 0;
                                 this.codebook[subVar] = {
-                                    label: (item.title_en || item.title) + ' - ' + (opt.label_en || opt.text || opt.label),
+                                    label: (item.title_en || item.title) + ' - ' + (opt.label_en || opt
+                                        .text || opt.label),
                                     type: 'Nominal',
                                     format: 'F1.0',
-                                    values: { 0: 'Not Selected', 1: 'Selected' },
-                                    variableType: 'Numeric',
-                                    columnWidth: 8,
-                                    measurementLevel: 'Nominal',
-                                    missingValue: '0',
-                                    missingValueSkip: '-98'
+                                    values: { 0: 'Not Selected', 1: 'Selected' }
                                 };
-                                checkboxVars.push(subVar);
                             }.bind(this));
-
-                            // Track MRSET for checkbox items
-                            if (item.mrset && checkboxVars.length > 0) {
-                                const mrsetName = this.sanitizeVarName(varName + '_MRSET');
-                                this.mrsets[mrsetName] = {
-                                    label: item.title_en || item.title,
-                                    variables: checkboxVars,
-                                    countedValue: 1
-                                };
-                            }
                         } else if (item.type === 'signature' || item.type === 'camera') {
                             flatRow[varName] = value ? 1 : 0;
-                            this.codebook[varName] = { 
-                                label: item.title_en || item.title, 
-                                type: 'Nominal',
-                                format: 'F1.0', 
-                                values: { 0: 'Not Captured', 1: 'Captured' },
-                                variableType: 'Numeric',
-                                columnWidth: 8,
-                                measurementLevel: 'Nominal',
-                                missingValue: '0',
-                                missingValueSkip: '-98'
-                            };
+                            this.codebook[varName] = { label: item.title_en || item.title, type: 'Nominal',
+                                format: 'F1.0', values: { 0: 'Not Captured', 1: 'Captured' } };
                         }
                     }.bind(this));
                 }.bind(this));
                 return flatRow;
             }
 
-            autoDetectMeasurementLevel(type) {
-                if (type === 'number') return 'Scale';
-                if (type === 'likert' || type === 'scale' || type === 'scale10') return 'Ordinal';
-                return 'Nominal';
-            }
-
-            autoDetectVariableType(type) {
-                if (type === 'text') return 'String';
-                if (type === 'number' || type === 'likert' || type === 'scale' || type === 'scale10' || type === 'binary' || type === 'mcq' || type === 'checkbox' || type === 'signature' || type === 'camera') return 'Numeric';
-                return 'String';
-            }
-
-            autoDetectDecimals(type) {
-                if (type === 'number') return 2;
-                if (type === 'scale10') return 0;
-                return 0;
-            }
-
-            autoDetectColumnWidth(type) {
-                if (type === 'text') return 50;
-                if (type === 'number') return 10;
-                if (type === 'scale10') return 8;
-                return 8;
-            }
-
-            buildFormat(variableType, decimals, itemType) {
-                if (variableType === 'String') return 'A255';
-                if (variableType === 'Date') return 'ADATE10';
-                if (itemType === 'scale10') return 'F2.0';
-                if (itemType === 'number') return 'F8.' + decimals;
-                if (itemType === 'checkbox' || itemType === 'signature' || itemType === 'camera') return 'F1.0';
-                return 'F8.0';
-            }
-
-            getScaleMax(item) {
-                if (item.options && item.options.length > 0) {
-                    const values = item.options.map(o => o.value !== undefined ? o.value : 0).filter(v => !isNaN(v));
-                    return Math.max(...values);
-                }
-                if (item.type === 'scale10') return 10;
-                if (item.type === 'likert' && item.options) return item.options.length;
-                return 5;
-            }
-
             generateSPSSSyntax(projectConfig) {
-                let syntax = "* SPSS Syntax generated by Clinical Data Dashboard v19.0 (SPSS-Ready Pipeline);\n";
+                let syntax = "* SPSS Syntax generated by Clinical Data Dashboard v18.0;\n";
                 syntax += "* Project: " + (projectConfig.name || 'Untitled') + ";\n";
-                syntax += "* Generated: " + new Date().toISOString() + ";\n";
-                syntax += "* Records: " + (projectConfig._recordCount || 'N/A') + ";\n\n";
+                syntax += "* Generated: " + new Date().toISOString() + ";\n\n";
 
-                // 1. VARIABLE LABELS
                 syntax += "* 1. VARIABLE LABELS;\n";
                 for (const varName in this.codebook) {
                     const meta = this.codebook[varName];
-                    syntax += 'VARIABLE LABELS ' + varName + ' "' + (meta.label || varName).replace(/"/g, '""') + '".\n';
+                    syntax += 'VARIABLE LABELS ' + varName + ' "' + (meta.label || varName).replace(/"/g, '""') +
+                    '".\n';
                 }
                 syntax += "EXECUTE.\n\n";
 
-                // 2. VALUE LABELS
                 syntax += "* 2. VALUE LABELS;\n";
                 for (const varName in this.codebook) {
                     const meta = this.codebook[varName];
@@ -1033,7 +898,6 @@
                 }
                 syntax += "EXECUTE.\n\n";
 
-                // 3. VARIABLE FORMATS
                 syntax += "* 3. VARIABLE FORMATS;\n";
                 for (const varName in this.codebook) {
                     const meta = this.codebook[varName];
@@ -1043,81 +907,23 @@
                 }
                 syntax += "EXECUTE.\n\n";
 
-                // 4. VARIABLE WIDTH (column width)
-                syntax += "* 4. VARIABLE WIDTH;\n";
+                syntax += "* 4. MEASUREMENT LEVELS;\n";
                 for (const varName in this.codebook) {
                     const meta = this.codebook[varName];
-                    if (meta.columnWidth) {
-                        syntax += 'VARIABLE WIDTH ' + varName + ' (' + meta.columnWidth + ').\n';
+                    syntax += 'VARIABLE LEVEL ' + varName + ' (' + (meta.type || 'NOMINAL') + ').\n';
+                }
+                syntax += "EXECUTE.\n\n";
+
+                syntax += "* 5. MISSING VALUES;\n";
+                for (const varName in this.codebook) {
+                    const meta = this.codebook[varName];
+                    if (meta.type === 'Scale' || meta.type === 'Ordinal') {
+                        syntax += 'MISSING VALUES ' + varName + ' (-99).\n';
                     }
                 }
                 syntax += "EXECUTE.\n\n";
 
-                // 5. VARIABLE ALIGNMENT (left for strings, right for numeric)
-                syntax += "* 5. VARIABLE ALIGNMENT;\n";
-                for (const varName in this.codebook) {
-                    const meta = this.codebook[varName];
-                    const align = meta.variableType === 'String' ? 'LEFT' : 'RIGHT';
-                    syntax += 'VARIABLE ALIGNMENT ' + varName + ' (' + align + ').\n';
-                }
-                syntax += "EXECUTE.\n\n";
-
-                // 6. VARIABLE ROLE (Input for analysis variables, Both for system vars)
-                syntax += "* 6. VARIABLE ROLE;\n";
-                for (const varName in this.codebook) {
-                    const meta = this.codebook[varName];
-                    const role = this.systemVars.includes(varName) ? 'BOTH' : 'INPUT';
-                    syntax += 'VARIABLE ROLE ' + varName + ' (' + role + ').\n';
-                }
-                syntax += "EXECUTE.\n\n";
-
-                // 7. MEASUREMENT LEVELS
-                syntax += "* 7. MEASUREMENT LEVELS;\n";
-                for (const varName in this.codebook) {
-                    const meta = this.codebook[varName];
-                    syntax += 'VARIABLE LEVEL ' + varName + ' (' + (meta.measurementLevel || meta.type || 'NOMINAL') + ').\n';
-                }
-                syntax += "EXECUTE.\n\n";
-
-                // 8. MISSING VALUES (with skip-logic support)
-                syntax += "* 8. MISSING VALUES;\n";
-                for (const varName in this.codebook) {
-                    const meta = this.codebook[varName];
-                    const missingVals = [];
-                    if (meta.missingValue) missingVals.push(meta.missingValue);
-                    if (meta.missingValueSkip) missingVals.push(meta.missingValueSkip);
-                    if (missingVals.length > 0) {
-                        syntax += 'MISSING VALUES ' + varName + ' (' + missingVals.join(' ') + ').\n';
-                    }
-                }
-                syntax += "EXECUTE.\n\n";
-
-                // 9. RECODE REVERSE-SCORED ITEMS (before scale computation)
-                if (Object.keys(this.reverseItems).length > 0) {
-                    syntax += "* 9. RECODE REVERSE-SCORED ITEMS;\n";
-                    for (const varName in this.reverseItems) {
-                        const rev = this.reverseItems[varName];
-                        const recodedName = varName + '_R';
-                        syntax += 'RECODE ' + varName + ' ';
-                        // Generate recode mapping: 1->max, 2->max-1, etc.
-                        const mappings = [];
-                        for (let v = 1; v <= rev.maxValue; v++) {
-                            mappings.push(v + '=' + (rev.maxValue - v + 1));
-                        }
-                        syntax += mappings.join(' ') + ' INTO ' + recodedName + '.\n';
-                        syntax += 'VARIABLE LABELS ' + recodedName + ' "Recoded (reversed): ' + this.codebook[varName].label + '".\n';
-                        syntax += 'VARIABLE LEVEL ' + recodedName + ' (ORDINAL).\n';
-                        syntax += 'FORMATS ' + recodedName + ' (F8.0).\n';
-                        // Update the codebook to use recoded variable for scale computation
-                        this.codebook[recodedName] = { ...this.codebook[varName], label: 'Recoded (reversed): ' + this.codebook[varName].label };
-                        // Replace in scales later
-                        this.reverseItems[varName].recodedName = recodedName;
-                    }
-                    syntax += "EXECUTE.\n\n";
-                }
-
-                // 10. SCALE COMPUTATIONS (using recoded variables where applicable)
-                syntax += "* 10. SCALE COMPUTATIONS;\n";
+                syntax += "* 6. SCALE COMPUTATIONS;\n";
                 let scales = {};
                 if (projectConfig && projectConfig.pages) {
                     projectConfig.pages.forEach(function(page) {
@@ -1127,15 +933,10 @@
                                 item.scale !== 'Consent' && item.scale !== 'Documentation' &&
                                 ['number', 'scale', 'likert', 'scale10'].includes(item.type)) {
                                 if (!scales[item.scale]) scales[item.scale] = [];
-                                let varName = item.vName || item.id;
-                                // Use recoded variable if reverse-scored
-                                if (this.reverseItems[varName] && this.reverseItems[varName].recodedName) {
-                                    varName = this.reverseItems[varName].recodedName;
-                                }
-                                scales[item.scale].push(varName);
+                                scales[item.scale].push(item.vName || item.id);
                             }
-                        }.bind(this));
-                    }.bind(this));
+                        });
+                    });
                 }
 
                 for (const scaleName in scales) {
@@ -1147,29 +948,11 @@
                     syntax += 'VARIABLE LABELS ' + cleanName + '_Mean "Mean Score for ' + scaleName + '".\n';
                     syntax += 'FORMATS ' + cleanName + '_Total ' + cleanName + '_Mean (F8.2).\n';
                     syntax += 'VARIABLE LEVEL ' + cleanName + '_Total ' + cleanName + '_Mean (SCALE).\n';
-                    syntax += 'VARIABLE ROLE ' + cleanName + '_Total ' + cleanName + '_Mean (INPUT).\n';
                     syntax += '\n';
                 }
                 syntax += "EXECUTE.\n\n";
 
-                // 11. MULTIPLE RESPONSE SETS (MRSET)
-                if (Object.keys(this.mrsets).length > 0) {
-                    syntax += "* 11. MULTIPLE RESPONSE SETS;\n";
-                    for (const mrsetName in this.mrsets) {
-                        const mrset = this.mrsets[mrsetName];
-                        const vars = mrset.variables.join(' ');
-                        syntax += 'MRSETS\n';
-                        syntax += '  /MDGROUP NAME=$' + mrsetName + '\n';
-                        syntax += '    LABEL="' + mrset.label.replace(/"/g, '""') + '"\n';
-                        syntax += '    VARIABLES=' + vars + '\n';
-                        syntax += '    VALUE=' + mrset.countedValue + '\n';
-                        syntax += '    MISSING=EXCLUDE.\n';
-                    }
-                    syntax += "EXECUTE.\n\n";
-                }
-
-                // 12. RELIABILITY ANALYSIS (Cronbach's Alpha)
-                syntax += "* 12. RELIABILITY ANALYSIS (Cronbach's Alpha);\n";
+                syntax += "* 7. RELIABILITY ANALYSIS (Cronbach's Alpha);\n";
                 for (const scaleName in scales) {
                     const vars = scales[scaleName].join(' ');
                     syntax += 'RELIABILITY VARIABLES=' + vars + '\n';
@@ -1178,116 +961,7 @@
                     syntax += '  /SUMMARY=TOTAL.\n\n';
                 }
 
-                // 13. FREQUENCIES FOR QUICK CHECK
-                syntax += "* 13. QUICK FREQUENCY CHECK (first 20 variables);\n";
-                const varNames = Object.keys(this.codebook).slice(0, 20);
-                if (varNames.length > 0) {
-                    syntax += 'FREQUENCIES VARIABLES=' + varNames.join(' ') + '\n';
-                    syntax += '  /FORMAT=NOTABLE\n';
-                    syntax += '  /STATISTICS=MEAN STDDEV MIN MAX.\n\n';
-                }
-
                 return syntax;
-            }
-
-            // Generate CSV with UTF-8 BOM
-            generateCSV(records, projectConfig) {
-                if (records.length === 0) return '';
-                
-                const engine = new SPSSDataEngine();
-                let allRows = [];
-                records.forEach(function(rec) {
-                    const row = engine.prepareDataForExport(rec.answers, rec.answers._duration_sec, projectConfig, rec.participantId, rec.answers._language || 'en');
-                    allRows.push(row);
-                });
-
-                if (allRows.length === 0) return '';
-
-                const headers = Object.keys(allRows[0]);
-                let csv = '\uFEFF' + headers.join(',') + '\n'; // UTF-8 BOM
-                allRows.forEach(function(row) {
-                    const line = headers.map(function(h) {
-                        let val = row[h];
-                        if (val === null || val === undefined) return '';
-                        val = String(val).replace(/"/g, '""');
-                        return '"' + val + '"';
-                    });
-                    csv += line.join(',') + '\n';
-                });
-                return csv;
-            }
-
-            // Generate codebook for Excel export
-            generateCodebook() {
-                const rows = [['Variable Name', 'Variable Label', 'Variable Type', 'Measurement Level', 'Format', 'Column Width', 'Alignment', 'Role', 'Missing Values', 'Missing (Skip Logic)', 'Value Labels']];
-                for (const varName in this.codebook) {
-                    const meta = this.codebook[varName];
-                    const valueLabels = Object.entries(meta.values || {}).map(e => e[0] + '=' + e[1]).join('; ');
-                    const missingVals = [];
-                    if (meta.missingValue) missingVals.push(meta.missingValue);
-                    if (meta.missingValueSkip) missingVals.push(meta.missingValueSkip + ' (skip logic)');
-                    rows.push([
-                        varName,
-                        meta.label || '',
-                        meta.variableType || '',
-                        meta.measurementLevel || meta.type || '',
-                        meta.format || '',
-                        meta.columnWidth || '',
-                        meta.variableType === 'String' ? 'LEFT' : 'RIGHT',
-                        this.systemVars.includes(varName) ? 'BOTH' : 'INPUT',
-                        meta.missingValue || '',
-                        meta.missingValueSkip || '',
-                        valueLabels
-                    ]);
-                }
-                return rows;
-            }
-
-            // Pre-flight syntax validation
-            validateSyntax(syntax) {
-                const errors = [];
-                const lines = syntax.split('\n');
-                let inBlock = false;
-                let blockType = '';
-                
-                lines.forEach((line, idx) => {
-                    const trimmed = line.trim();
-                    if (trimmed.startsWith('*') || trimmed === '') return;
-                    
-                    // Check for balanced quotes
-                    const quoteCount = (line.match(/"/g) || []).length;
-                    if (quoteCount % 2 !== 0) {
-                        errors.push('Line ' + (idx + 1) + ': Unbalanced quotes');
-                    }
-                    
-                    // Check for EXECUTE after command blocks
-                    if (trimmed.match(/^(VARIABLE|VALUE|FORMATS|MISSING|COMPUTE|RECODE|MRSETS|RELIABILITY|FREQUENCIES)/i)) {
-                        inBlock = true;
-                        blockType = trimmed.split(' ')[0];
-                    }
-                    if (trimmed === 'EXECUTE.') {
-                        inBlock = false;
-                        blockType = '';
-                    }
-                });
-                
-                // Check for unclosed blocks
-                if (inBlock) {
-                    errors.push('Unclosed block: ' + blockType + ' (missing EXECUTE.)');
-                }
-                
-                // Check for duplicate VARIABLE LABELS
-                const varLabels = syntax.match(/VARIABLE LABELS\s+(\w+)/g);
-                if (varLabels) {
-                    const seen = new Set();
-                    varLabels.forEach(v => {
-                        const name = v.replace('VARIABLE LABELS ', '').trim();
-                        if (seen.has(name)) errors.push('Duplicate VARIABLE LABELS for: ' + name);
-                        seen.add(name);
-                    });
-                }
-                
-                return { valid: errors.length === 0, errors };
             }
         }
 
@@ -1539,55 +1213,6 @@
                         '<input type="text" value="' + esc(item.showIf?.value || '') +
                         '" onchange="updateShowIf(' + pIdx + ',' + iIdx +
                         ',\'value\',this.value)" class="w-16 px-2 py-1 border rounded text-xs" placeholder="Value">' +
-                        '</div>';
-
-                    // SPSS Metadata fields
-                    let spssMetaHtml = '<div class="mt-2 p-3 bg-purple-50 rounded border border-purple-100 space-y-2">' +
-                        '<h4 class="text-xs font-bold text-purple-800 uppercase tracking-wide">SPSS Variable Properties</h4>' +
-                        '<div class="grid grid-cols-1 md:grid-cols-3 gap-2">' +
-                        '<div>' +
-                        '<label class="block text-xs font-medium text-gray-500 mb-1">Measurement Level</label>' +
-                        '<select onchange="updateItemField(' + pIdx + ',' + iIdx + ',\'measurementLevel\',this.value)" class="w-full px-2 py-1 border rounded text-xs">' +
-                        '<option value="Nominal" ' + (item.measurementLevel === 'Nominal' ? 'selected' : '') + '>Nominal</option>' +
-                        '<option value="Ordinal" ' + (item.measurementLevel === 'Ordinal' ? 'selected' : '') + '>Ordinal</option>' +
-                        '<option value="Scale" ' + (item.measurementLevel === 'Scale' ? 'selected' : '') + '>Scale</option>' +
-                        '</select>' +
-                        '</div>' +
-                        '<div>' +
-                        '<label class="block text-xs font-medium text-gray-500 mb-1">Variable Type</label>' +
-                        '<select onchange="updateItemField(' + pIdx + ',' + iIdx + ',\'variableType\',this.value)" class="w-full px-2 py-1 border rounded text-xs">' +
-                        '<option value="Numeric" ' + (item.variableType === 'Numeric' ? 'selected' : '') + '>Numeric</option>' +
-                        '<option value="String" ' + (item.variableType === 'String' ? 'selected' : '') + '>String</option>' +
-                        '<option value="Date" ' + (item.variableType === 'Date' ? 'selected' : '') + '>Date</option>' +
-                        '</select>' +
-                        '</div>' +
-                        '<div>' +
-                        '<label class="block text-xs font-medium text-gray-500 mb-1">Decimals</label>' +
-                        '<input type="number" value="' + (item.decimals !== undefined ? item.decimals : 0) + '" min="0" max="16" onchange="updateItemField(' + pIdx + ',' + iIdx + ',\'decimals\',Number(this.value))" class="w-full px-2 py-1 border rounded text-xs">' +
-                        '</div>' +
-                        '<div>' +
-                        '<label class="block text-xs font-medium text-gray-500 mb-1">Column Width</label>' +
-                        '<input type="number" value="' + (item.columnWidth !== undefined ? item.columnWidth : 8) + '" min="1" max="255" onchange="updateItemField(' + pIdx + ',' + iIdx + ',\'columnWidth\',Number(this.value))" class="w-full px-2 py-1 border rounded text-xs">' +
-                        '</div>' +
-                        '<div>' +
-                        '<label class="block text-xs font-medium text-gray-500 mb-1">Missing Value (User)</label>' +
-                        '<input type="text" value="' + esc(item.missingValue || '-99') + '" onchange="updateItemField(' + pIdx + ',' + iIdx + ',\'missingValue\',this.value)" class="w-full px-2 py-1 border rounded text-xs" placeholder="-99">' +
-                        '</div>' +
-                        '<div>' +
-                        '<label class="block text-xs font-medium text-gray-500 mb-1">Missing Value (Skip Logic)</label>' +
-                        '<input type="text" value="' + esc(item.missingValueSkip || '-98') + '" onchange="updateItemField(' + pIdx + ',' + iIdx + ',\'missingValueSkip\',this.value)" class="w-full px-2 py-1 border rounded text-xs" placeholder="-98">' +
-                        '</div>' +
-                        '<div class="md:col-span-3 flex items-center gap-2">' +
-                        '<label class="flex items-center gap-1 text-xs cursor-pointer">' +
-                        '<input type="checkbox" ' + (item.reverseScored ? 'checked' : '') + ' onchange="updateItemField(' + pIdx + ',' + iIdx + ',\'reverseScored\',this.checked)" class="w-4 h-4">' +
-                        '<span class="font-medium text-purple-800">Reverse Scored (for scale computations)</span>' +
-                        '</label>' +
-                        '<label class="flex items-center gap-1 text-xs cursor-pointer ml-4">' +
-                        '<input type="checkbox" ' + (item.mrset ? 'checked' : '') + ' onchange="updateItemField(' + pIdx + ',' + iIdx + ',\'mrset\',this.checked)" class="w-4 h-4">' +
-                        '<span class="font-medium text-purple-800">Multiple Response Set (checkbox only)</span>' +
-                        '</label>' +
-                        '</div>' +
-                        '</div>' +
                         '</div>';
 
                     return '<div class="item-card p-3 bg-white rounded border shadow-sm">' +
