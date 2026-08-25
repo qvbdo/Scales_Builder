@@ -485,6 +485,42 @@
             return clean;
         }
 
+        // ==========================================
+        // 7b. PHASE 1 — SPSS METADATA HELPERS
+        // (measurement level suggestion + project-wide
+        //  duplicate variable-name detection for the builder UI)
+        // ==========================================
+        function suggestMeasurementLevel(type) {
+            if (type === 'number') return 'Scale';
+            if (type === 'likert' || type === 'scale10') return 'Ordinal';
+            return 'Nominal'; // binary, mcq, text, checkbox, signature, camera
+        }
+
+        function suggestVariableType(type) {
+            return type === 'text' ? 'String' : 'Numeric';
+        }
+
+        // Returns a Set of vNames (uppercased) that appear more than once across the
+        // ENTIRE project (all pages), matching SPSS's project-wide uniqueness requirement —
+        // not just per-page. Used to live-flag collisions in the builder before export time,
+        // rather than letting the engine silently auto-rename them (Age -> Age_2...).
+        function getDuplicateVarNames() {
+            const counts = {};
+            (appState.project.pages || []).forEach(function(page) {
+                (page.items || []).forEach(function(item) {
+                    if (!item.vName) return;
+                    const key = item.vName.trim().toUpperCase();
+                    if (!key) return;
+                    counts[key] = (counts[key] || 0) + 1;
+                });
+            });
+            const dupes = new Set();
+            Object.keys(counts).forEach(function(k) {
+                if (counts[k] > 1) dupes.add(k);
+            });
+            return dupes;
+        }
+
         function downloadFile(content, fileName, mimeType) {
             const blob = new Blob([content], { type: mimeType });
             const url = URL.createObjectURL(blob);
@@ -879,10 +915,29 @@
                     (page.items || []).forEach(function(item, iIdx) {
                         var varName = this.resolveVarName(item, pIdx, iIdx);
                         var value = answers[item.vName || item.id];
-                        var missingCode = (item.missingCode !== undefined && item.missingCode !== null) ?
-                            Number(item.missingCode) : -99;
+                        var isStringVar = item.variableType === 'String' || (item.type === 'text' && item
+                            .variableType !== 'Numeric');
+                        var missingCode = (item.missingCode !== undefined && item.missingCode !== null &&
+                                item.missingCode !== '') ?
+                            (isStringVar ? item.missingCode : Number(item.missingCode)) :
+                            (isStringVar ? undefined : -99);
+                        // Optional second missing code (e.g. "N/A due to skip logic"), distinct from
+                        // the primary "not answered" code — captured in the builder (Phase 1),
+                        // applied in MISSING VALUES below alongside the primary code.
+                        var missingCode2 = (item.missingCode2 !== undefined && item.missingCode2 !== null &&
+                                item.missingCode2 !== '') ?
+                            (isStringVar ? item.missingCode2 : Number(item.missingCode2)) : undefined;
+                        var missingCodes = [missingCode, missingCode2].filter(function(c) {
+                            return c !== undefined && c !== null && c !== '';
+                        });
                         var decimals = item.decimals !== undefined ? Number(item.decimals) : (item.type ===
                             'number' ? 2 : 0);
+                        // Measurement level: respect an explicit user override from the builder
+                        // (Nominal/Ordinal/Scale); 'auto' or unset falls back to the per-type default
+                        // already computed further down for each branch.
+                        var levelOverride = (item.measurementLevel && item.measurementLevel !== 'auto') ? item
+                            .measurementLevel : null;
+                        var colWidth = item.columnWidth !== undefined ? Number(item.columnWidth) : undefined;
 
                         if (item.type === 'scale' || item.type === 'likert' || item.type === 'scale10') {
                             flatRow[varName] = (value !== undefined && value !== null && value !== '') ? Number(
@@ -897,15 +952,15 @@
                                 Math.max.apply(null, optVals) : optCount);
                             this.codebook[varName] = {
                                 label: item.title_en || item.title,
-                                type: 'Ordinal',
+                                type: levelOverride || 'Ordinal',
                                 format: item.type === 'scale10' ? 'F2.0' : 'F8.0',
-                                width: 8, align: 'RIGHT', variableType: 'NUMERIC',
+                                width: colWidth || 8, align: 'RIGHT', variableType: 'NUMERIC',
                                 values: item.options ? item.options.reduce(function(acc, opt, idx) {
                                     acc[opt.value !== undefined ? opt.value : (idx + 1)] = opt
                                     .label_en || opt.text || opt.label;
                                     return acc;
                                 }, {}) : {},
-                                missing: [missingCode],
+                                missing: missingCodes,
                                 reverseScored: !!item.reverseScored,
                                 scaleMin: scaleMin, scaleMax: scaleMax,
                                 scaleGroup: (item.scale && item.scale !== 'Unassigned') ? item.scale : null
@@ -913,28 +968,32 @@
                         } else if (item.type === 'number') {
                             flatRow[varName] = (value !== undefined && value !== null && value !== '') ? Number(
                                 value) : missingCode;
-                            this.codebook[varName] = { label: item.title_en || item.title, type: 'Scale',
-                                format: 'F8.' + decimals, width: 8, align: 'RIGHT', variableType: 'NUMERIC',
-                                values: {}, missing: [missingCode],
+                            this.codebook[varName] = { label: item.title_en || item.title, type: levelOverride ||
+                                    'Scale',
+                                format: 'F8.' + decimals, width: colWidth || 8, align: 'RIGHT', variableType:
+                                    'NUMERIC',
+                                values: {}, missing: missingCodes,
                                 scaleGroup: (item.scale && item.scale !== 'Unassigned') ? item.scale : null };
                         } else if (item.type === 'text') {
                             flatRow[varName] = value ? String(value) : '';
-                            this.codebook[varName] = { label: item.title_en || item.title, type: 'Nominal',
-                                format: 'A255', width: item.columnWidth || 60, align: 'LEFT',
-                                variableType: 'STRING', values: {}, missing: [] };
+                            var isDateVar = item.variableType === 'Date';
+                            this.codebook[varName] = { label: item.title_en || item.title, type: levelOverride ||
+                                    'Nominal',
+                                format: isDateVar ? 'ADATE10' : 'A255', width: colWidth || 60, align: 'LEFT',
+                                variableType: 'STRING', values: {}, missing: missingCodes };
                         } else if (item.type === 'binary' || item.type === 'mcq') {
                             flatRow[varName] = (value !== undefined && value !== null && value !== '') ? Number(
                                 value) : missingCode;
                             this.codebook[varName] = {
                                 label: item.title_en || item.title,
-                                type: 'Nominal',
-                                format: 'F8.0', width: 8, align: 'RIGHT', variableType: 'NUMERIC',
+                                type: levelOverride || 'Nominal',
+                                format: 'F8.0', width: colWidth || 8, align: 'RIGHT', variableType: 'NUMERIC',
                                 values: item.options ? item.options.reduce(function(acc, opt, idx) {
                                     acc[opt.value !== undefined ? opt.value : (idx + 1)] = opt
                                     .label_en || opt.text || opt.label;
                                     return acc;
                                 }, {}) : {},
-                                missing: [missingCode]
+                                missing: missingCodes
                             };
                         } else if (item.type === 'checkbox') {
                             var arr = Array.isArray(value) ? value : [];
@@ -1056,7 +1115,12 @@
                 allVars.forEach(function(v) {
                     var m = self.codebook[v];
                     if (m.missing && m.missing.length > 0) {
-                        syntax += 'MISSING VALUES ' + v + ' (' + m.missing.join(', ') + ').\n';
+                        // String variables need their missing codes quoted; numeric ones are bare.
+                        var codes = m.missing.map(function(c) {
+                            return m.variableType === 'STRING' ? ('\'' + String(c).replace(/'/g, "''") + '\'') :
+                                c;
+                        });
+                        syntax += 'MISSING VALUES ' + v + ' (' + codes.join(', ') + ').\n';
                     }
                 });
                 syntax += 'EXECUTE.\n\n';
@@ -1293,10 +1357,24 @@
                 title_ar: 'سؤال جديد',
                 scale: 'Unassigned',
                 req: false,
-                options: defaultOptions[type] || []
+                options: defaultOptions[type] || [],
+                // --- SPSS field group (Phase 1) ---
+                measurementLevel: 'auto', // 'auto' = derive from type via suggestMeasurementLevel()
+                variableType: suggestVariableType(type), // Numeric / String / Date
+                decimals: type === 'number' ? 2 : 0,
+                columnWidth: type === 'text' ? 60 : 8,
+                missingCode: type === 'text' ? '' : -99, // primary "not answered" code
+                missingCode2: '' // optional secondary code, e.g. "N/A due to skip logic"
             };
             if (type === 'number') { item.min = 0;
                 item.max = 100; }
+            if (type === 'likert' || type === 'scale10') {
+                item.reverseScored = false;
+                const optVals = (item.options || []).map(function(o) { return Number(o.value); });
+                item.scaleMin = optVals.length ? Math.min.apply(null, optVals) : 1;
+                item.scaleMax = optVals.length ? Math.max.apply(null, optVals) : (type === 'scale10' ? 10 : 5);
+            }
+            if (type === 'checkbox') { item.mrset = true; }
             appState.project.pages[pageIdx].items.push(item);
             renderBuilderPages();
         }
@@ -1306,11 +1384,24 @@
             renderBuilderPages();
         }
 
+        const NUMERIC_ITEM_FIELDS = ['min', 'max', 'decimals', 'columnWidth', 'scaleMin', 'scaleMax'];
+        const BOOLEAN_ITEM_FIELDS = ['req', 'reverseScored', 'mrset'];
+        // missingCode / missingCode2 are numeric for numeric-type items but left as strings
+        // (e.g. blank) for text/string items, so they're coerced separately below.
+
         function updateItemField(pageIdx, itemIdx, field, value) {
             const item = appState.project.pages[pageIdx].items[itemIdx];
             if (field === 'vName') item[field] = formatSPSS(value);
-            else if (field === 'req' || field === 'min' || field === 'max') item[field] = value;
-            else item[field] = value;
+            else if (BOOLEAN_ITEM_FIELDS.includes(field)) item[field] = !!value;
+            else if (NUMERIC_ITEM_FIELDS.includes(field)) item[field] = (value === '' || value === null ||
+                value === undefined) ? undefined : Number(value);
+            else if (field === 'missingCode' || field === 'missingCode2') {
+                if (value === '' || value === null || value === undefined) item[field] = '';
+                else {
+                    const vType = item.variableType || suggestVariableType(item.type);
+                    item[field] = (vType === 'String') ? String(value) : Number(value);
+                }
+            } else item[field] = value;
             renderBuilderPages();
         }
 
@@ -1347,6 +1438,16 @@
         function renderBuilderPages() {
             const container = document.getElementById('builder-pages-container');
             container.innerHTML = '';
+
+            const dupeVarNames = getDuplicateVarNames();
+            if (dupeVarNames.size > 0) {
+                container.innerHTML +=
+                    '<div class="p-3 rounded border border-red-300 bg-red-50 text-red-800 text-sm flex items-start gap-2">' +
+                    '<span class="font-bold">⚠</span><div><strong>Duplicate SPSS variable names detected:</strong> ' +
+                    Array.from(dupeVarNames).map(esc).join(', ') +
+                    '. SPSS variable names must be unique project-wide (across all pages), not just per page. ' +
+                    'Rename the highlighted fields below before exporting — otherwise the export engine will silently auto-rename them (e.g. <code>Age</code> → <code>Age_2</code>).</div></div>';
+            }
 
             appState.project.pages.forEach(function(page, pIdx) {
                 let itemsHtml = page.items.map(function(item, iIdx) {
@@ -1400,6 +1501,68 @@
                             '</div>';
                     }
 
+                    // --- SPSS metadata panel (Phase 1) ---
+                    const isOrdinalType = (item.type === 'likert' || item.type === 'scale10');
+                    const isCheckboxType = (item.type === 'checkbox');
+                    const measurementOptions = ['auto', 'Nominal', 'Ordinal', 'Scale'].map(function(opt) {
+                        return '<option value="' + opt + '"' + ((item.measurementLevel || 'auto') === opt ?
+                            ' selected' : '') + '>' + (opt === 'auto' ? 'Auto (' + suggestMeasurementLevel(
+                                item.type) + ')' : opt) + '</option>';
+                    }).join('');
+                    const variableTypeOptions = ['Numeric', 'String', 'Date'].map(function(opt) {
+                        return '<option value="' + opt + '"' + ((item.variableType || suggestVariableType(item
+                            .type)) === opt ? ' selected' : '') + '>' + opt + '</option>';
+                    }).join('');
+
+                    let spssMetaHtml = '<details class="mt-2 bg-slate-50 border border-slate-200 rounded">' +
+                        '<summary class="text-xs font-bold text-slate-600 px-2 py-1 cursor-pointer select-none">⚙ SPSS Metadata (Variable View)</summary>' +
+                        '<div class="p-2 pt-1 grid grid-cols-2 md:grid-cols-4 gap-2">' +
+                        '<label class="text-xs text-slate-600">Measurement<select onchange="updateItemField(' +
+                        pIdx + ',' + iIdx +
+                        ',\'measurementLevel\',this.value)" class="w-full mt-0.5 px-1 py-1 border rounded text-xs">' +
+                        measurementOptions + '</select></label>' +
+                        '<label class="text-xs text-slate-600">Var. Type<select onchange="updateItemField(' +
+                        pIdx + ',' + iIdx +
+                        ',\'variableType\',this.value)" class="w-full mt-0.5 px-1 py-1 border rounded text-xs">' +
+                        variableTypeOptions + '</select></label>' +
+                        '<label class="text-xs text-slate-600">Decimals<input type="number" min="0" max="9" value="' +
+                        (item.decimals !== undefined ? item.decimals : 0) + '" onchange="updateItemField(' +
+                        pIdx + ',' + iIdx +
+                        ',\'decimals\',this.value)" class="w-full mt-0.5 px-1 py-1 border rounded text-xs"></label>' +
+                        '<label class="text-xs text-slate-600">Column Width<input type="number" min="1" value="' +
+                        (item.columnWidth !== undefined ? item.columnWidth : 8) +
+                        '" onchange="updateItemField(' + pIdx + ',' + iIdx +
+                        ',\'columnWidth\',this.value)" class="w-full mt-0.5 px-1 py-1 border rounded text-xs"></label>' +
+                        '<label class="text-xs text-slate-600">Missing Code (not answered)<input type="text" value="' +
+                        esc(item.missingCode !== undefined ? item.missingCode : '') +
+                        '" onchange="updateItemField(' + pIdx + ',' + iIdx +
+                        ',\'missingCode\',this.value)" placeholder="-99" class="w-full mt-0.5 px-1 py-1 border rounded text-xs font-mono"></label>' +
+                        '<label class="text-xs text-slate-600">Missing Code 2 (skip-logic N/A)<input type="text" value="' +
+                        esc(item.missingCode2 !== undefined ? item.missingCode2 : '') +
+                        '" onchange="updateItemField(' + pIdx + ',' + iIdx +
+                        ',\'missingCode2\',this.value)" placeholder="-98" class="w-full mt-0.5 px-1 py-1 border rounded text-xs font-mono"></label>' +
+                        (isOrdinalType ?
+                            ('<label class="text-xs text-slate-600">Scale Min<input type="number" value="' +
+                                (item.scaleMin !== undefined ? item.scaleMin : '') +
+                                '" onchange="updateItemField(' + pIdx + ',' + iIdx +
+                                ',\'scaleMin\',this.value)" class="w-full mt-0.5 px-1 py-1 border rounded text-xs"></label>' +
+                                '<label class="text-xs text-slate-600">Scale Max<input type="number" value="' +
+                                (item.scaleMax !== undefined ? item.scaleMax : '') +
+                                '" onchange="updateItemField(' + pIdx + ',' + iIdx +
+                                ',\'scaleMax\',this.value)" class="w-full mt-0.5 px-1 py-1 border rounded text-xs"></label>' +
+                                '<label class="text-xs text-slate-600 flex items-center gap-1 mt-3"><input type="checkbox" ' +
+                                (item.reverseScored ? 'checked' : '') + ' onchange="updateItemField(' + pIdx +
+                                ',' + iIdx +
+                                ',\'reverseScored\',this.checked)"> Reverse-scored item</label>') :
+                            '') +
+                        (isCheckboxType ?
+                            ('<label class="text-xs text-slate-600 flex items-center gap-1 mt-3"><input type="checkbox" ' +
+                                (item.mrset !== false ? 'checked' : '') + ' onchange="updateItemField(' +
+                                pIdx + ',' + iIdx +
+                                ',\'mrset\',this.checked)"> Include in Multiple Response Set (MRSET)</label>') :
+                            '') +
+                        '</div></details>';
+
                     let showIfHtml = '<div class="flex gap-2 mt-2 items-center bg-indigo-50 p-2 rounded border border-indigo-100">' +
                         '<span class="text-xs font-bold text-indigo-800">⑂ Show if:</span>' +
                         '<input type="text" value="' + esc(item.showIf?.vName || '') +
@@ -1411,12 +1574,21 @@
                         ',\'value\',this.value)" class="w-16 px-2 py-1 border rounded text-xs" placeholder="Value">' +
                         '</div>';
 
+                    const isDupeVName = item.vName && dupeVarNames.has(item.vName.trim().toUpperCase());
+
                     return '<div class="item-card p-3 bg-white rounded border shadow-sm">' +
                         '<div class="flex justify-between items-start mb-2">' +
                         '<div class="flex-1 grid grid-cols-1 md:grid-cols-2 gap-2">' +
+                        '<div>' +
                         '<input type="text" value="' + esc(item.vName) +
                         '" onchange="updateItemField(' + pIdx + ',' + iIdx +
-                        ',\'vName\',this.value)" class="px-2 py-1 border rounded text-sm font-mono text-red-600 bg-red-50" placeholder="SPSS Variable Name">' +
+                        ',\'vName\',this.value)" class="w-full px-2 py-1 border rounded text-sm font-mono text-red-600 ' +
+                        (isDupeVName ? 'bg-red-100 border-red-500 ring-2 ring-red-400' : 'bg-red-50') +
+                        '" placeholder="SPSS Variable Name">' +
+                        (isDupeVName ?
+                            '<div class="text-xs text-red-600 font-bold mt-0.5">⚠ Duplicate name — must be unique project-wide</div>' :
+                            '') +
+                        '</div>' +
                         '<input type="text" value="' + esc(item.scale) +
                         '" onchange="updateItemField(' + pIdx + ',' + iIdx +
                         ',\'scale\',this.value)" class="px-2 py-1 border rounded text-sm text-purple-800" placeholder="Scale Group">' +
@@ -1439,7 +1611,7 @@
                         ')" class="text-red-500 hover:text-red-700 text-sm font-bold">×</button>' +
                         '</div>' +
                         '</div>' +
-                        showIfHtml + minMaxHtml + optionsHtml +
+                        showIfHtml + minMaxHtml + optionsHtml + spssMetaHtml +
                         '</div>';
                 }).join('');
 
