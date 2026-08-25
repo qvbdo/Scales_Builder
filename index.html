@@ -836,6 +836,12 @@
         // 5. ENHANCED SPSS DATA ENGINE
         // ==========================================
         class SPSSDataEngine {
+            // Sentinel written into an answer by the data-collection UI when a question was
+            // hidden by showIf skip-logic at submission time (Phase 2). Declared as a static
+            // class field (not a free-standing module constant) so it survives
+            // `SPSSDataEngine.toString()` re-embedding into the exported standalone app.
+            static SKIP_LOGIC_NA = '__SKIP_LOGIC_NA__';
+
             constructor() {
                 this.codebook = {};
                 this.usedNames = new Set();
@@ -900,12 +906,16 @@
                 // Standardized system variables — always present in every export.
                 flatRow['ParticipantID'] = participantId != null ? String(participantId) : '';
                 flatRow['SubmissionDate'] = recordMeta.submissionDate || '';
+                flatRow['Language'] = recordMeta.language || '';
                 flatRow['DurationSec'] = (duration !== undefined && duration !== null) ? Number(duration) : -99;
                 if (!this.codebook['ParticipantID']) {
                     this.codebook['ParticipantID'] = { label: 'Participant ID', type: 'Nominal', format: 'A64',
                         width: 20, align: 'LEFT', variableType: 'STRING', values: {}, missing: [] };
                     this.codebook['SubmissionDate'] = { label: 'Submission date/time', type: 'Nominal',
                         format: 'A32', width: 20, align: 'LEFT', variableType: 'STRING', values: {}, missing: [] };
+                    this.codebook['Language'] = { label: 'Language used for data entry', type: 'Nominal',
+                        format: 'A8', width: 8, align: 'LEFT', variableType: 'STRING', values: { en: 'English',
+                            ar: 'Arabic' }, missing: [''] };
                     this.codebook['DurationSec'] = { label: 'Time to complete (seconds)', type: 'Scale',
                         format: 'F8.0', width: 8, align: 'RIGHT', variableType: 'NUMERIC', values: {},
                         missing: [-99] };
@@ -914,7 +924,12 @@
                 (projectConfig.pages || []).forEach(function(page, pIdx) {
                     (page.items || []).forEach(function(item, iIdx) {
                         var varName = this.resolveVarName(item, pIdx, iIdx);
-                        var value = answers[item.vName || item.id];
+                        var rawValue = answers[item.vName || item.id];
+                        // A question hidden by showIf logic at submission time is stamped with this
+                        // sentinel by the collector (Phase 2), rather than left simply absent, so it
+                        // can be told apart from a question the participant genuinely left blank.
+                        var isSkippedByLogic = (rawValue === SPSSDataEngine.SKIP_LOGIC_NA);
+                        var value = isSkippedByLogic ? undefined : rawValue;
                         var isStringVar = item.variableType === 'String' || (item.type === 'text' && item
                             .variableType !== 'Numeric');
                         var missingCode = (item.missingCode !== undefined && item.missingCode !== null &&
@@ -922,14 +937,22 @@
                             (isStringVar ? item.missingCode : Number(item.missingCode)) :
                             (isStringVar ? undefined : -99);
                         // Optional second missing code (e.g. "N/A due to skip logic"), distinct from
-                        // the primary "not answered" code — captured in the builder (Phase 1),
-                        // applied in MISSING VALUES below alongside the primary code.
+                        // the primary "not answered" code — captured in the builder (Phase 1).
                         var missingCode2 = (item.missingCode2 !== undefined && item.missingCode2 !== null &&
                                 item.missingCode2 !== '') ?
                             (isStringVar ? item.missingCode2 : Number(item.missingCode2)) : undefined;
+                        // Both codes are ALWAYS declared in the codebook/MISSING VALUES (item-level,
+                        // not record-level) so the declared metadata stays identical across every
+                        // record regardless of whether skip-logic actually fired for THIS record.
                         var missingCodes = [missingCode, missingCode2].filter(function(c) {
                             return c !== undefined && c !== null && c !== '';
                         });
+                        // Which code to actually WRITE into this record's cell: prefer the
+                        // skip-logic code when this specific answer was skipped by logic, otherwise
+                        // fall back to the primary "not answered" code.
+                        var appliedMissing = isSkippedByLogic ?
+                            ((missingCode2 !== undefined && missingCode2 !== null && missingCode2 !== '') ?
+                                missingCode2 : missingCode) : missingCode;
                         var decimals = item.decimals !== undefined ? Number(item.decimals) : (item.type ===
                             'number' ? 2 : 0);
                         // Measurement level: respect an explicit user override from the builder
@@ -941,7 +964,7 @@
 
                         if (item.type === 'scale' || item.type === 'likert' || item.type === 'scale10') {
                             flatRow[varName] = (value !== undefined && value !== null && value !== '') ? Number(
-                                value) : missingCode;
+                                value) : appliedMissing;
                             var optCount = item.options ? item.options.length : (item.type === 'scale10' ? 10 :
                                 5);
                             var optVals = item.options ? item.options.map(function(o) { return o.value !==
@@ -967,7 +990,7 @@
                             };
                         } else if (item.type === 'number') {
                             flatRow[varName] = (value !== undefined && value !== null && value !== '') ? Number(
-                                value) : missingCode;
+                                value) : appliedMissing;
                             this.codebook[varName] = { label: item.title_en || item.title, type: levelOverride ||
                                     'Scale',
                                 format: 'F8.' + decimals, width: colWidth || 8, align: 'RIGHT', variableType:
@@ -975,7 +998,9 @@
                                 values: {}, missing: missingCodes,
                                 scaleGroup: (item.scale && item.scale !== 'Unassigned') ? item.scale : null };
                         } else if (item.type === 'text') {
-                            flatRow[varName] = value ? String(value) : '';
+                            flatRow[varName] = isSkippedByLogic ?
+                                (appliedMissing !== undefined ? String(appliedMissing) : '') :
+                                (value ? String(value) : '');
                             var isDateVar = item.variableType === 'Date';
                             this.codebook[varName] = { label: item.title_en || item.title, type: levelOverride ||
                                     'Nominal',
@@ -983,7 +1008,7 @@
                                 variableType: 'STRING', values: {}, missing: missingCodes };
                         } else if (item.type === 'binary' || item.type === 'mcq') {
                             flatRow[varName] = (value !== undefined && value !== null && value !== '') ? Number(
-                                value) : missingCode;
+                                value) : appliedMissing;
                             this.codebook[varName] = {
                                 label: item.title_en || item.title,
                                 type: levelOverride || 'Nominal',
@@ -1001,14 +1026,15 @@
                             (item.options || []).forEach(function(opt, oIdx) {
                                 var optVal = opt.value !== undefined ? opt.value : (oIdx + 1);
                                 var subVar = varName + '_' + optVal;
-                                flatRow[subVar] = arr.includes(optVal) ? 1 : 0;
+                                flatRow[subVar] = isSkippedByLogic ? appliedMissing : (arr.includes(optVal) ? 1 :
+                                    0);
                                 subVars.push(subVar);
                                 this.codebook[subVar] = {
                                     label: (item.title_en || item.title || '') + ' - ' + (opt.label_en || opt
                                         .text || opt.label || ''),
                                     type: 'Nominal',
                                     format: 'F1.0', width: 1, align: 'RIGHT', variableType: 'NUMERIC',
-                                    values: { 0: 'Not Selected', 1: 'Selected' }, missing: []
+                                    values: { 0: 'Not Selected', 1: 'Selected' }, missing: missingCodes
                                 };
                             }.bind(this));
                             var mrsetKey = 'MR_' + (item.id || (pIdx + '_' + iIdx));
@@ -1252,6 +1278,15 @@
         let inspectStartTime = Date.now();
         let inspectParticipantId = '';
         let charts = [];
+
+        // ==========================================
+        // 10b. PHASE 2 — DATA COLLECTION CONSTANTS
+        // ==========================================
+        // Sentinel stored as an answer's value when a question was hidden by showIf logic at
+        // submission time. This lets the export engine distinguish "skipped because a prior
+        // answer made this question inapplicable" (-> item.missingCode2) from "genuinely left
+        // blank" (-> item.missingCode) — instead of both collapsing to the same missing code.
+        const SKIP_LOGIC_NA = SPSSDataEngine.SKIP_LOGIC_NA;
 
         // Initialize
         function initApp() {
@@ -1759,7 +1794,16 @@
                 if (!el) return;
                 const isHidden = isHiddenByLogic(item);
                 el.classList.toggle('hidden', isHidden);
-                if (isHidden) delete inspectAnswers[item.vName || item.id];
+                const vName = item.vName || item.id;
+                if (isHidden) {
+                    // Stamp rather than delete, so the export engine can tell "skipped by
+                    // skip-logic" apart from "left blank" (Phase 2 gap #2).
+                    inspectAnswers[vName] = SKIP_LOGIC_NA;
+                } else if (inspectAnswers[vName] === SKIP_LOGIC_NA) {
+                    // Question became applicable again (an earlier answer changed) — clear the
+                    // stamp so it renders empty and can be answered normally.
+                    delete inspectAnswers[vName];
+                }
             });
         }
 
@@ -1782,6 +1826,11 @@
                 }
                 if (item.type === 'number' && isAns) {
                     const num = Number(val);
+                    if (isNaN(num)) {
+                        alert((item['title_' + currentInspectLang] || item.title_en) +
+                            ' must be a valid number.');
+                        return false;
+                    }
                     if (item.min !== undefined && num < item.min) { alert((item['title_' + currentInspectLang] || item
                             .title_en) + ' minimum is ' + item.min);
                         return false; }
@@ -1920,6 +1969,7 @@
             document.getElementById('btn-inspect-submit').classList.toggle('hidden', !isLastPage);
 
             initSignatureCanvases();
+            evaluateInspectLogic();
         }
 
         function initSignatureCanvases() {
@@ -1990,6 +2040,7 @@
 
         async function handleFinalSubmit() {
             if (!validateInspectPage()) return;
+            evaluateInspectLogic(); // final pass so this page's hidden items are stamped before save
             const duration = Math.floor((Date.now() - inspectStartTime) / 1000);
             inspectAnswers._duration_sec = duration;
 
@@ -1999,6 +2050,7 @@
                 participantId: inspectParticipantId,
                 projectId: appState.project.id,
                 timestamp: Date.now(),
+                language: currentInspectLang, // Phase 2 — standardized system variable
                 answers: inspectAnswers
             };
 
@@ -2012,7 +2064,8 @@
                         ['number', 'likert', 'scale10'].includes(item.type)) {
                         if (!scores[item.scale]) scores[item.scale] = 0;
                         const val = inspectAnswers[item.vName || item.id];
-                        if (val !== undefined && !isNaN(val)) scores[item.scale] += Number(val);
+                        if (val !== undefined && val !== SKIP_LOGIC_NA && !isNaN(val)) scores[item.scale] +=
+                            Number(val);
                     }
                 });
             });
@@ -2210,7 +2263,8 @@
                     rec.answers ? rec.answers._duration_sec : undefined,
                     appState.project,
                     rec.participantId,
-                    { submissionDate: rec.timestamp ? new Date(rec.timestamp).toISOString() : '' }
+                    { submissionDate: rec.timestamp ? new Date(rec.timestamp).toISOString() : '', language: rec
+                        .language || '' }
                 );
                 allRows.push(row);
             });
@@ -2429,6 +2483,7 @@
         function qAll(){ if(db) return db.syncQueue.toArray(); return Promise.resolve(_lsGet('c_queue')); }
 
         var pg = 0, ans = {}, lang = 'en', pid = '', st = 0;
+        var SKIP_LOGIC_NA = '__SKIP_LOGIC_NA__'; // Phase 2 — same sentinel semantics as the main dashboard
         function esc(s){return s==null?'':String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')}
         function toast(msg,type){var t=document.createElement('div');t.className='toast toast-'+type;t.textContent=msg;document.body.appendChild(t);setTimeout(function(){t.classList.add('show')},10);setTimeout(function(){t.classList.remove('show');setTimeout(function(){t.remove()},300)},3000)}
         function updConn(){var d=document.getElementById('conn-dot'),x=document.getElementById('conn-text');if(navigator.onLine){d.className='sync-indicator sync-dot-synced';x.textContent='Online'}else{d.className='sync-indicator sync-dot-failed';x.textContent='Offline'}}
@@ -2439,19 +2494,19 @@
         function startInt(){pg=0;st=Date.now();editId=null;ren()}
         function togL(){lang=lang==='en'?'ar':'en';document.documentElement.dir=lang==='ar'?'rtl':'ltr';if(!document.getElementById('v-intro').classList.contains('hidden'))goTo('intro');else ren()}
         function isH(q){if(!q.showIf||!q.showIf.vName)return false;return String(ans[q.showIf.vName])!==String(q.showIf.value)}
-        function evL(){proj.pages[pg].items.forEach(function(q){var el=document.getElementById('qi-'+q.id);if(el){el.classList.toggle('hidden',isH(q));if(isH(q))delete ans[q.vName||q.id]}})}
-        function val(){if(pg===0&&(!pid||pid.trim()==='')){alert('Participant ID required');return false}var p=proj.pages[pg];for(var i=0;i<p.items.length;i++){var q=p.items[i];if(isH(q))continue;var v=ans[q.vName||q.id],ok=v!==undefined&&v!==null&&v!==''&&!(Array.isArray(v)&&v.length===0);if(q.req&&!ok){alert('Required: '+(q['title_'+lang]||q.title_en));return false}if(q.type==='number'&&ok){var n=Number(v);if(q.min!==undefined&&n<q.min){alert('Min: '+q.min);return false}if(q.max!==undefined&&n>q.max){alert('Max: '+q.max);return false}}}return true}
-        function ren(){var p=proj.pages[pg];document.getElementById('s-title').textContent=p['title_'+lang]||p.title_en;document.getElementById('s-prog').textContent='Page '+(pg+1)+' of '+proj.pages.length;document.getElementById('id-con').classList.toggle('hidden',pg!==0);if(pg===0)document.getElementById('p-id').value=pid;document.getElementById('q-con').innerHTML=p.items.map(function(q){var vn=q.vName||q.id;var t=q['title_'+lang]||q.title_en;var r=q.req?'<span class="text-red-500">*</span>':'';var h='';if(q.type==='text')h='<textarea class="w-full p-3 border rounded" data-vn="'+esc(vn)+'" data-act="text">'+esc(ans[vn]||'')+'</textarea>';else if(q.type==='number')h='<input type="number" class="w-full p-3 border rounded" data-vn="'+esc(vn)+'" data-act="num" value="'+esc(ans[vn]||'')+'">';else if(q.type==='binary'||q.type==='mcq')h='<div class="space-y-2">'+(q.options||[]).map(function(o){return '<label class="flex items-center gap-3 p-3 border rounded cursor-pointer"><input type="radio" name="'+q.id+'" value="'+o.value+'" data-vn="'+esc(vn)+'" data-act="num" '+(ans[vn]===o.value?'checked':'')+' class="w-5 h-5"><span>'+esc(o['label_'+lang]||o.label_en)+'</span></label>'}).join('')+'</div>';else if(q.type==='checkbox')h='<div class="space-y-2">'+(q.options||[]).map(function(o){var a=Array.isArray(ans[vn])?ans[vn]:[];return '<label class="flex items-center gap-3 p-3 border rounded cursor-pointer"><input type="checkbox" value="'+o.value+'" data-vn="'+esc(vn)+'" data-act="multi" '+(a.includes(o.value)?'checked':'')+' class="w-5 h-5"><span>'+esc(o['label_'+lang]||o.label_en)+'</span></label>'}).join('')+'</div>';else if(q.type==='likert')h='<div class="flex flex-wrap justify-between gap-2 bg-gray-50 p-4 rounded border">'+(q.options||[]).map(function(o){return '<label class="flex flex-col items-center flex-1 text-center cursor-pointer min-w-[70px]"><input type="radio" name="'+q.id+'" value="'+o.value+'" data-vn="'+esc(vn)+'" data-act="num" '+(ans[vn]===o.value?'checked':'')+' class="w-5 h-5 mb-2"><span class="text-xs font-semibold">'+esc(o['label_'+lang]||o.label_en)+'</span></label>'}).join('')+'</div>';else if(q.type==='scale10')h='<div class="flex flex-wrap justify-between gap-1 bg-gray-50 p-4 rounded border">'+[1,2,3,4,5,6,7,8,9,10].map(function(n){return '<label class="flex flex-col items-center flex-1 cursor-pointer min-w-[40px]"><input type="radio" name="'+q.id+'" value="'+n+'" data-vn="'+esc(vn)+'" data-act="num" '+(ans[vn]===n?'checked':'')+' class="w-5 h-5 mb-2"><span class="text-sm font-bold">'+n+'</span></label>'}).join('')+'</div>';else if(q.type==='signature')h='<div class="sig-canvas p-2"><canvas id="sig-'+q.id+'" width="400" height="150" class="w-full bg-white" style="max-width:100%"></canvas><div class="flex justify-end mt-2"><button type="button" data-act="clearsig" data-qid="'+q.id+'" data-vn="'+esc(vn)+'" class="text-sm bg-red-100 text-red-600 px-3 py-1 rounded">Clear</button></div></div>';else if(q.type==='camera')h='<div class="p-4 border-2 border-dashed border-gray-400 rounded bg-gray-50 text-center"><input type="file" accept="image/*" capture="environment" data-vn="'+esc(vn)+'" data-act="camera" class="w-full"></div>';return '<div id="qi-'+q.id+'" class="'+(isH(q)?'hidden':'')+'"><label class="block font-bold mb-2">'+esc(t)+' '+r+'</label>'+h+'</div>'}).join('');document.getElementById('b-prv').classList.toggle('hidden',pg===0);document.getElementById('b-nxt').classList.toggle('hidden',pg===proj.pages.length-1);document.getElementById('b-sav').classList.toggle('hidden',pg!==proj.pages.length-1);initSigs()}
+        function evL(){proj.pages[pg].items.forEach(function(q){var el=document.getElementById('qi-'+q.id);if(el){var isHidden=isH(q);el.classList.toggle('hidden',isHidden);var vn=q.vName||q.id;if(isHidden)ans[vn]=SKIP_LOGIC_NA;else if(ans[vn]===SKIP_LOGIC_NA)delete ans[vn]}})}
+        function val(){if(pg===0&&(!pid||pid.trim()==='')){alert('Participant ID required');return false}var p=proj.pages[pg];for(var i=0;i<p.items.length;i++){var q=p.items[i];if(isH(q))continue;var v=ans[q.vName||q.id],ok=v!==undefined&&v!==null&&v!==''&&!(Array.isArray(v)&&v.length===0);if(q.req&&!ok){alert('Required: '+(q['title_'+lang]||q.title_en));return false}if(q.type==='number'&&ok){var n=Number(v);if(isNaN(n)){alert((q['title_'+lang]||q.title_en)+' must be a valid number');return false}if(q.min!==undefined&&n<q.min){alert('Min: '+q.min);return false}if(q.max!==undefined&&n>q.max){alert('Max: '+q.max);return false}}}return true}
+        function ren(){var p=proj.pages[pg];document.getElementById('s-title').textContent=p['title_'+lang]||p.title_en;document.getElementById('s-prog').textContent='Page '+(pg+1)+' of '+proj.pages.length;document.getElementById('id-con').classList.toggle('hidden',pg!==0);if(pg===0)document.getElementById('p-id').value=pid;document.getElementById('q-con').innerHTML=p.items.map(function(q){var vn=q.vName||q.id;var t=q['title_'+lang]||q.title_en;var r=q.req?'<span class="text-red-500">*</span>':'';var h='';if(q.type==='text')h='<textarea class="w-full p-3 border rounded" data-vn="'+esc(vn)+'" data-act="text">'+esc(ans[vn]||'')+'</textarea>';else if(q.type==='number')h='<input type="number" class="w-full p-3 border rounded" data-vn="'+esc(vn)+'" data-act="num" value="'+esc(ans[vn]||'')+'">';else if(q.type==='binary'||q.type==='mcq')h='<div class="space-y-2">'+(q.options||[]).map(function(o){return '<label class="flex items-center gap-3 p-3 border rounded cursor-pointer"><input type="radio" name="'+q.id+'" value="'+o.value+'" data-vn="'+esc(vn)+'" data-act="num" '+(ans[vn]===o.value?'checked':'')+' class="w-5 h-5"><span>'+esc(o['label_'+lang]||o.label_en)+'</span></label>'}).join('')+'</div>';else if(q.type==='checkbox')h='<div class="space-y-2">'+(q.options||[]).map(function(o){var a=Array.isArray(ans[vn])?ans[vn]:[];return '<label class="flex items-center gap-3 p-3 border rounded cursor-pointer"><input type="checkbox" value="'+o.value+'" data-vn="'+esc(vn)+'" data-act="multi" '+(a.includes(o.value)?'checked':'')+' class="w-5 h-5"><span>'+esc(o['label_'+lang]||o.label_en)+'</span></label>'}).join('')+'</div>';else if(q.type==='likert')h='<div class="flex flex-wrap justify-between gap-2 bg-gray-50 p-4 rounded border">'+(q.options||[]).map(function(o){return '<label class="flex flex-col items-center flex-1 text-center cursor-pointer min-w-[70px]"><input type="radio" name="'+q.id+'" value="'+o.value+'" data-vn="'+esc(vn)+'" data-act="num" '+(ans[vn]===o.value?'checked':'')+' class="w-5 h-5 mb-2"><span class="text-xs font-semibold">'+esc(o['label_'+lang]||o.label_en)+'</span></label>'}).join('')+'</div>';else if(q.type==='scale10')h='<div class="flex flex-wrap justify-between gap-1 bg-gray-50 p-4 rounded border">'+[1,2,3,4,5,6,7,8,9,10].map(function(n){return '<label class="flex flex-col items-center flex-1 cursor-pointer min-w-[40px]"><input type="radio" name="'+q.id+'" value="'+n+'" data-vn="'+esc(vn)+'" data-act="num" '+(ans[vn]===n?'checked':'')+' class="w-5 h-5 mb-2"><span class="text-sm font-bold">'+n+'</span></label>'}).join('')+'</div>';else if(q.type==='signature')h='<div class="sig-canvas p-2"><canvas id="sig-'+q.id+'" width="400" height="150" class="w-full bg-white" style="max-width:100%"></canvas><div class="flex justify-end mt-2"><button type="button" data-act="clearsig" data-qid="'+q.id+'" data-vn="'+esc(vn)+'" class="text-sm bg-red-100 text-red-600 px-3 py-1 rounded">Clear</button></div></div>';else if(q.type==='camera')h='<div class="p-4 border-2 border-dashed border-gray-400 rounded bg-gray-50 text-center"><input type="file" accept="image/*" capture="environment" data-vn="'+esc(vn)+'" data-act="camera" class="w-full"></div>';return '<div id="qi-'+q.id+'" class="'+(isH(q)?'hidden':'')+'"><label class="block font-bold mb-2">'+esc(t)+' '+r+'</label>'+h+'</div>'}).join('');document.getElementById('b-prv').classList.toggle('hidden',pg===0);document.getElementById('b-nxt').classList.toggle('hidden',pg===proj.pages.length-1);document.getElementById('b-sav').classList.toggle('hidden',pg!==proj.pages.length-1);initSigs();evL()}
         document.addEventListener('change',function(e){var el=e.target,act=el.getAttribute&&el.getAttribute('data-act');if(!act)return;var vn=el.getAttribute('data-vn');if(act==='text'){ans[vn]=el.value;evL()}else if(act==='num'){ans[vn]=Number(el.value);evL()}else if(act==='multi'){var arr=Array.isArray(ans[vn])?ans[vn]:[];var v=Number(el.value);if(el.checked){if(!arr.includes(v))arr.push(v)}else{arr=arr.filter(function(x){return x!==v})}ans[vn]=arr;evL()}else if(act==='camera'){var f=el.files[0];if(f){var r=new FileReader();r.onload=function(ev){ans[vn]=ev.target.result};r.readAsDataURL(f)}}});
         document.addEventListener('click',function(e){var el=e.target.closest&&e.target.closest('[data-act="clearsig"]');if(!el)return;cls(el.getAttribute('data-qid'),el.getAttribute('data-vn'))});
         function nxt(){if(val()){pg++;ren();window.scrollTo(0,0)}}function prv(){pg--;ren();window.scrollTo(0,0)}
         function initSigs(){proj.pages[pg].items.filter(function(q){return q.type==='signature'}).forEach(function(q){var c=document.getElementById('sig-'+q.id);if(!c)return;var x=c.getContext('2d'),d=false;function gp(e){var r=c.getBoundingClientRect();return{x:(e.touches?e.touches[0].clientX:e.clientX)-r.left,y:(e.touches?e.touches[0].clientY:e.clientY)-r.top}}function sd(e){d=true;var p=gp(e);x.beginPath();x.moveTo(p.x,p.y);e.preventDefault()}function dr(e){if(!d)return;var p=gp(e);x.lineTo(p.x,p.y);x.stroke();e.preventDefault()}function ed(e){d=false;ans[q.vName||q.id]=c.toDataURL();e.preventDefault()}c.addEventListener('mousedown',sd);c.addEventListener('mousemove',dr);c.addEventListener('mouseup',ed);c.addEventListener('mouseout',ed);c.addEventListener('touchstart',sd);c.addEventListener('touchmove',dr);c.addEventListener('touchend',ed)})}
         window.cls=function(id,vn){var c=document.getElementById('sig-'+id);if(c){c.getContext('2d').clearRect(0,0,c.width,c.height);delete ans[vn]}}
-        async function sav(){if(!val())return;ans._duration_sec=Math.round((Date.now()-st)/1000);var rec={id:editId||(crypto.randomUUID?crypto.randomUUID():'rec_'+Date.now()),participantId:pid,projectId:proj.id,timestamp:Date.now(),answers:ans,_syncStatus:'pending'};var wasEdit=!!editId;editId=null;await subPut(rec);if(isOnlineMode&&navigator.onLine&&proj.supabaseUrl){try{await fetch(proj.supabaseUrl,{method:'POST',headers:{'Content-Type':'application/json','apikey':proj.supabaseKey||'','Authorization':'Bearer '+(proj.supabaseKey||''),'Prefer':'resolution=merge-duplicates'},body:JSON.stringify(rec)});rec._syncStatus='synced';await subPut(rec);toast(wasEdit?'Record updated & synced!':'Saved & synced!','success')}catch(e){await qPut(rec);toast(wasEdit?'Updated locally. Will sync.':'Saved locally. Will sync.','warning')}}else{toast(wasEdit?'Record updated.':'Saved locally.','success')}ans={};pid='';document.getElementById('p-id').value='';pg=0;goTo('intro')}
+        async function sav(){if(!val())return;evL();ans._duration_sec=Math.round((Date.now()-st)/1000);var rec={id:editId||(crypto.randomUUID?crypto.randomUUID():'rec_'+Date.now()),participantId:pid,projectId:proj.id,timestamp:Date.now(),language:lang,answers:ans,_syncStatus:'pending'};var wasEdit=!!editId;editId=null;await subPut(rec);if(isOnlineMode&&navigator.onLine&&proj.supabaseUrl){try{await fetch(proj.supabaseUrl,{method:'POST',headers:{'Content-Type':'application/json','apikey':proj.supabaseKey||'','Authorization':'Bearer '+(proj.supabaseKey||''),'Prefer':'resolution=merge-duplicates'},body:JSON.stringify(rec)});rec._syncStatus='synced';await subPut(rec);toast(wasEdit?'Record updated & synced!':'Saved & synced!','success')}catch(e){await qPut(rec);toast(wasEdit?'Updated locally. Will sync.':'Saved locally. Will sync.','warning')}}else{toast(wasEdit?'Record updated.':'Saved locally.','success')}ans={};pid='';document.getElementById('p-id').value='';pg=0;goTo('intro')}
         function checkPin(){var c=prompt('Enter PIN:');if(c===proj.pin){goTo('dash');updDash()}else if(c!==null)alert('Access Denied')}
         async function updDash(){var d=await subAll();document.getElementById('d-count').textContent=d.length;var s=d.filter(function(r){return r._syncStatus==='synced'}).length;var p=d.length-s;document.getElementById('d-synced').textContent=s;document.getElementById('d-pending').textContent=p;var l=document.getElementById('d-list');l.innerHTML=d.length===0?'<p class="text-center text-gray-500 py-4">No data.</p>':d.map(function(x){return '<div class="p-3 border rounded flex justify-between items-center"><div><span class="font-bold">'+esc(x.participantId)+'</span><span class="text-xs text-gray-500 ml-2">'+new Date(x.timestamp).toLocaleString()+'</span></div><div class="flex gap-2"><button data-act="edt" data-id="'+x.id+'" class="text-xs bg-yellow-100 text-yellow-700 px-2 py-1 rounded">Edit</button><button data-act="del" data-id="'+x.id+'" class="text-xs bg-red-100 text-red-700 px-2 py-1 rounded">Delete</button></div></div>'}).join('')}
         document.addEventListener('click',function(e){var el=e.target.closest&&e.target.closest('[data-act="edt"],[data-act="del"]');if(!el)return;var id=el.getAttribute('data-id');if(el.getAttribute('data-act')==='edt')edt(id);else del(id)});
-        window.edt=function(id){var c=prompt('PIN:');if(c!==proj.pin)return alert('Denied');subGet(id).then(function(r){if(r){ans=Object.assign({},r.answers);pid=r.participantId;editId=r.id;st=Date.now();pg=0;goTo('int');ren();toast('Editing record — Save will update it.','info')}})}
+        window.edt=function(id){var c=prompt('PIN:');if(c!==proj.pin)return alert('Denied');subGet(id).then(function(r){if(r){ans=Object.assign({},r.answers);pid=r.participantId;editId=r.id;lang=r.language||lang;st=Date.now();pg=0;goTo('int');ren();toast('Editing record — Save will update it.','info')}})}
         window.del=function(id){if(confirm('Delete?')){subDel(id);qDel(id);updDash()}}
         async function syncAll(){if(!navigator.onLine){toast('Offline','error');return}await processQueue();updDash()}
         async function exp(){var d=await subAll();if(d.length===0)return alert('No data');var a=document.createElement('a');a.href=URL.createObjectURL(new Blob([JSON.stringify({metadata:{projectName:proj.name,projectId:proj.id,exportedAt:new Date().toISOString(),totalRecords:d.length},data:d},null,2)],{type:'application/json'}));a.download='sync_'+Date.now()+'.json';a.click()}
@@ -2465,7 +2520,7 @@
           var engine=new SPSSDataEngine();
           var allRows=[];
           d.forEach(function(rec){
-            var row=engine.prepareDataForExport(rec.answers||{}, rec.answers?rec.answers._duration_sec:undefined, proj, rec.participantId, {submissionDate: rec.timestamp?new Date(rec.timestamp).toISOString():''});
+            var row=engine.prepareDataForExport(rec.answers||{}, rec.answers?rec.answers._duration_sec:undefined, proj, rec.participantId, {submissionDate: rec.timestamp?new Date(rec.timestamp).toISOString():'', language: rec.language||''});
             allRows.push(row);
           });
           if(allRows.length===0)return alert('No data to export');
