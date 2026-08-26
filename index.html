@@ -478,7 +478,10 @@
         }
 
         function formatSPSS(name) {
-            const RESERVED = ['ALL', 'AND', 'BY', 'EQ', 'GE', 'GT', 'LE', 'LT', 'NE', 'NOT', 'OR', 'TO', 'WITH'];
+            // Shares the exact reserved-keyword list with SPSSDataEngine.RESERVED so the
+            // builder UI and the export engine can never disagree about which names are legal.
+            const RESERVED = (typeof SPSSDataEngine !== 'undefined' && SPSSDataEngine.RESERVED) ||
+                ['ALL', 'AND', 'BY', 'EQ', 'GE', 'GT', 'LE', 'LT', 'NE', 'NOT', 'OR', 'TO', 'WITH'];
             let clean = name.replace(/\s+/g, '_').replace(/[^a-zA-Z0-9_]/g, '');
             clean = (!/^[a-zA-Z@]/.test(clean) && clean.length > 0) ? 'V_' + clean : clean;
             if (RESERVED.includes(clean.toUpperCase())) clean = clean + '_V';
@@ -842,6 +845,15 @@
             // `SPSSDataEngine.toString()` re-embedding into the exported standalone app.
             static SKIP_LOGIC_NA = '__SKIP_LOGIC_NA__';
 
+            // SPSS reserved keywords — illegal as variable names. Shared as a single static
+            // list so every code path that mints or accepts a variable name (sanitizeVarName's
+            // fresh-name path AND resolveVarName's "already-clean, first-use" fast path) applies
+            // the exact same guard. Previously this list was duplicated inline inside
+            // sanitizeVarName only, so a vName that was a reserved word but not yet a duplicate
+            // (e.g. the very first item named "AND") slipped through resolveVarName's fast path
+            // untouched and produced invalid .sps syntax (e.g. `MISSING VALUES AND (-99).`).
+            static RESERVED = ['ALL', 'AND', 'BY', 'EQ', 'GE', 'GT', 'LE', 'LT', 'NE', 'NOT', 'OR', 'TO', 'WITH'];
+
             constructor() {
                 this.codebook = {};
                 this.usedNames = new Set();
@@ -851,7 +863,7 @@
             }
 
             sanitizeVarName(rawName, prefix) {
-                var RESERVED = ['ALL', 'AND', 'BY', 'EQ', 'GE', 'GT', 'LE', 'LT', 'NE', 'NOT', 'OR', 'TO', 'WITH'];
+                var RESERVED = SPSSDataEngine.RESERVED;
                 var clean = String(rawName || '').replace(/[^a-zA-Z0-9_]/g, '_').replace(/_+/g, '_').replace(
                     /^_+|_+$/g, '');
                 if (!/^[a-zA-Z]/.test(clean)) clean = 'V_' + clean;
@@ -879,6 +891,11 @@
                 var name;
                 if (item.vName) {
                     var clean = item.vName.substring(0, 64);
+                    // Reserved-keyword guard applied here too (not just inside sanitizeVarName's
+                    // collision path) — a name can be a reserved word on its very first use.
+                    if (SPSSDataEngine.RESERVED.indexOf(clean.toUpperCase()) !== -1) {
+                        clean = (clean + '_V').substring(0, 64);
+                    }
                     if (!this.usedNames.has(clean.toUpperCase())) {
                         this.usedNames.add(clean.toUpperCase());
                         name = clean;
@@ -975,12 +992,18 @@
                                 Math.max.apply(null, optVals) : optCount);
                             this.codebook[varName] = {
                                 label: item.title_en || item.title,
+                                labelAr: item.title_ar || '',
                                 type: levelOverride || 'Ordinal',
                                 format: item.type === 'scale10' ? 'F2.0' : 'F8.0',
                                 width: colWidth || 8, align: 'RIGHT', variableType: 'NUMERIC',
                                 values: item.options ? item.options.reduce(function(acc, opt, idx) {
                                     acc[opt.value !== undefined ? opt.value : (idx + 1)] = opt
                                     .label_en || opt.text || opt.label;
+                                    return acc;
+                                }, {}) : {},
+                                valuesAr: item.options ? item.options.reduce(function(acc, opt, idx) {
+                                    if (opt.label_ar) acc[opt.value !== undefined ? opt.value : (idx + 1)] =
+                                        opt.label_ar;
                                     return acc;
                                 }, {}) : {},
                                 missing: missingCodes,
@@ -991,31 +1014,44 @@
                         } else if (item.type === 'number') {
                             flatRow[varName] = (value !== undefined && value !== null && value !== '') ? Number(
                                 value) : appliedMissing;
-                            this.codebook[varName] = { label: item.title_en || item.title, type: levelOverride ||
+                            this.codebook[varName] = { label: item.title_en || item.title, labelAr: item
+                                    .title_ar || '', type: levelOverride ||
                                     'Scale',
                                 format: 'F8.' + decimals, width: colWidth || 8, align: 'RIGHT', variableType:
                                     'NUMERIC',
-                                values: {}, missing: missingCodes,
+                                values: {}, valuesAr: {}, missing: missingCodes,
+                                // Carried through for the Phase 5 QC summary's out-of-range check —
+                                // this is entry-time validation range (item.min/max from the builder),
+                                // not a value-label range.
+                                rangeMin: item.min !== undefined ? Number(item.min) : undefined,
+                                rangeMax: item.max !== undefined ? Number(item.max) : undefined,
                                 scaleGroup: (item.scale && item.scale !== 'Unassigned') ? item.scale : null };
                         } else if (item.type === 'text') {
                             flatRow[varName] = isSkippedByLogic ?
                                 (appliedMissing !== undefined ? String(appliedMissing) : '') :
                                 (value ? String(value) : '');
                             var isDateVar = item.variableType === 'Date';
-                            this.codebook[varName] = { label: item.title_en || item.title, type: levelOverride ||
+                            this.codebook[varName] = { label: item.title_en || item.title, labelAr: item
+                                    .title_ar || '', type: levelOverride ||
                                     'Nominal',
                                 format: isDateVar ? 'ADATE10' : 'A255', width: colWidth || 60, align: 'LEFT',
-                                variableType: 'STRING', values: {}, missing: missingCodes };
+                                variableType: 'STRING', values: {}, valuesAr: {}, missing: missingCodes };
                         } else if (item.type === 'binary' || item.type === 'mcq') {
                             flatRow[varName] = (value !== undefined && value !== null && value !== '') ? Number(
                                 value) : appliedMissing;
                             this.codebook[varName] = {
                                 label: item.title_en || item.title,
+                                labelAr: item.title_ar || '',
                                 type: levelOverride || 'Nominal',
                                 format: 'F8.0', width: colWidth || 8, align: 'RIGHT', variableType: 'NUMERIC',
                                 values: item.options ? item.options.reduce(function(acc, opt, idx) {
                                     acc[opt.value !== undefined ? opt.value : (idx + 1)] = opt
                                     .label_en || opt.text || opt.label;
+                                    return acc;
+                                }, {}) : {},
+                                valuesAr: item.options ? item.options.reduce(function(acc, opt, idx) {
+                                    if (opt.label_ar) acc[opt.value !== undefined ? opt.value : (idx + 1)] =
+                                        opt.label_ar;
                                     return acc;
                                 }, {}) : {},
                                 missing: missingCodes
@@ -1032,9 +1068,12 @@
                                 this.codebook[subVar] = {
                                     label: (item.title_en || item.title || '') + ' - ' + (opt.label_en || opt
                                         .text || opt.label || ''),
+                                    labelAr: (item.title_ar || opt.label_ar) ? ((item.title_ar || '') + (opt
+                                        .label_ar ? ' - ' + opt.label_ar : '')) : '',
                                     type: 'Nominal',
                                     format: 'F1.0', width: 1, align: 'RIGHT', variableType: 'NUMERIC',
-                                    values: { 0: 'Not Selected', 1: 'Selected' }, missing: missingCodes
+                                    values: { 0: 'Not Selected', 1: 'Selected' }, valuesAr: {}, missing:
+                                        missingCodes
                                 };
                             }.bind(this));
                             var mrsetKey = 'MR_' + (item.id || (pIdx + '_' + iIdx));
@@ -1045,9 +1084,10 @@
                             }
                         } else if (item.type === 'signature' || item.type === 'camera') {
                             flatRow[varName] = value ? 1 : 0;
-                            this.codebook[varName] = { label: item.title_en || item.title, type: 'Nominal',
+                            this.codebook[varName] = { label: item.title_en || item.title, labelAr: item
+                                    .title_ar || '', type: 'Nominal',
                                 format: 'F1.0', width: 1, align: 'RIGHT', variableType: 'NUMERIC',
-                                values: { 0: 'Not Captured', 1: 'Captured' }, missing: [] };
+                                values: { 0: 'Not Captured', 1: 'Captured' }, valuesAr: {}, missing: [] };
                         }
                     }.bind(this));
                 }.bind(this));
@@ -1091,19 +1131,31 @@
                 syntax += 'EXECUTE.\n\n';
 
                 // 3. VARIABLE LABELS
+                // Bilingual: appends the Arabic question title after the English one (separated by
+                // " / ") whenever the item has a title_ar, so Arabic labels captured in the builder
+                // (Phase 1) actually reach the generated .sps instead of being silently dropped.
                 syntax += '* 3. VARIABLE LABELS;\n';
                 allVars.forEach(function(v) {
-                    syntax += 'VARIABLE LABELS ' + v + ' "' + q(self.codebook[v].label || v) + '".\n';
+                    var m = self.codebook[v];
+                    var lbl = m.label || v;
+                    if (m.labelAr) lbl += ' / ' + m.labelAr;
+                    syntax += 'VARIABLE LABELS ' + v + ' "' + q(lbl) + '".\n';
                 });
                 syntax += 'EXECUTE.\n\n';
 
                 // 4. VALUE LABELS
+                // Same bilingual treatment per response option, when an Arabic value label
+                // (opt.label_ar) was captured for that option.
                 syntax += '* 4. VALUE LABELS;\n';
                 allVars.forEach(function(v) {
                     var m = self.codebook[v];
                     var keys = Object.keys(m.values || {});
                     if (keys.length > 0) {
-                        var vl = keys.map(function(k) { return k + ' "' + q(m.values[k]) + '"'; }).join(' ');
+                        var vl = keys.map(function(k) {
+                            var txt = m.values[k];
+                            if (m.valuesAr && m.valuesAr[k]) txt += ' / ' + m.valuesAr[k];
+                            return k + ' "' + q(txt) + '"';
+                        }).join(' ');
                         syntax += 'VALUE LABELS ' + v + ' ' + vl + '.\n';
                     }
                 });
@@ -1229,14 +1281,19 @@
 
             static buildCodebookCSV(codebook) {
                 var rows = [
-                    ['Variable', 'Label', 'Measurement Level', 'Type', 'Format', 'Missing Codes', 'Value Labels']
+                    ['Variable', 'Label', 'Label (Arabic)', 'Measurement Level', 'Type', 'Format',
+                        'Missing Codes', 'Value Labels', 'Value Labels (Arabic)'
+                    ]
                 ];
                 Object.keys(codebook).forEach(function(v) {
                     var m = codebook[v];
                     var valueLabels = Object.keys(m.values || {}).map(function(k) { return k + '=' + m.values[
                         k]; }).join('; ');
-                    rows.push([v, m.label || '', m.type || '', m.variableType || '', m.format || '', (m
-                        .missing || []).join(' '), valueLabels]);
+                    var valueLabelsAr = Object.keys(m.valuesAr || {}).map(function(k) { return k + '=' + m
+                        .valuesAr[k]; }).join('; ');
+                    rows.push([v, m.label || '', m.labelAr || '', m.type || '', m.variableType || '', m.format ||
+                        '', (m.missing || []).join(' '), valueLabels, valueLabelsAr
+                    ]);
                 });
                 return rows.map(function(r) {
                     return r.map(function(cell) {
@@ -1244,6 +1301,111 @@
                         return '"' + s + '"';
                     }).join(',');
                 }).join('\r\n');
+            }
+
+            // ==========================================
+            // PHASE 5 — QC SUMMARY
+            // Produces a short, human-readable report: record count, a missing-value rate per
+            // variable, out-of-range flags (Scale numeric range or Ordinal scaleMin/scaleMax),
+            // and a duplicate-ParticipantID check — the "flag, don't block" QC layer called for
+            // in the original gap analysis (gap #5) and deferred here from Phase 2.
+            static buildQCSummary(codebook, allRows, projectName) {
+                var N = allRows.length;
+                var lines = [];
+                lines.push('SPSS EXPORT — QUALITY CONTROL SUMMARY');
+                lines.push('Project: ' + (projectName || 'Untitled'));
+                lines.push('Generated: ' + new Date().toISOString());
+                lines.push('Total records exported: ' + N);
+                lines.push('');
+
+                // --- Duplicate ParticipantID check ---
+                lines.push('--- DUPLICATE PARTICIPANT IDs ---');
+                var idCounts = {};
+                allRows.forEach(function(row) {
+                    var pid = row['ParticipantID'];
+                    if (pid === undefined || pid === null || pid === '') return;
+                    idCounts[pid] = (idCounts[pid] || 0) + 1;
+                });
+                var dupeIds = Object.keys(idCounts).filter(function(id) { return idCounts[id] > 1; });
+                if (dupeIds.length === 0) {
+                    lines.push('None found — every ParticipantID is unique.');
+                } else {
+                    lines.push('WARNING: ' + dupeIds.length +
+                        ' ParticipantID value(s) appear more than once. This may be a legitimate re-submission/correction, or a genuine duplicate entry — review before analysis.');
+                    dupeIds.forEach(function(id) {
+                        lines.push('  - "' + id + '" appears ' + idCounts[id] + ' times');
+                    });
+                }
+                lines.push('');
+
+                // --- Missing-value rate per variable ---
+                lines.push('--- MISSING-VALUE RATES ---');
+                var varNames = Object.keys(codebook).filter(function(v) {
+                    return !['ParticipantID', 'SubmissionDate', 'Language'].includes(v); // near-never "missing" by design
+                });
+                varNames.forEach(function(v) {
+                    var m = codebook[v];
+                    var missingSet = (m.missing || []).map(String);
+                    var missingCount = 0;
+                    allRows.forEach(function(row) {
+                        var val = row[v];
+                        var isMissing = (val === undefined || val === null || val === '') ||
+                            missingSet.includes(String(val));
+                        if (isMissing) missingCount++;
+                    });
+                    var rate = N > 0 ? ((missingCount / N) * 100).toFixed(1) : '0.0';
+                    if (missingCount > 0) {
+                        lines.push('  ' + v + ': ' + missingCount + '/' + N + ' missing (' + rate + '%)');
+                    }
+                });
+                if (varNames.every(function(v) {
+                        var m = codebook[v];
+                        var missingSet = (m.missing || []).map(String);
+                        return allRows.every(function(row) {
+                            var val = row[v];
+                            return !((val === undefined || val === null || val === '') || missingSet.includes(
+                                String(val)));
+                        });
+                    })) {
+                    lines.push('No missing values detected on any variable.');
+                }
+                lines.push('');
+
+                // --- Out-of-range flags (Scale numeric range or Ordinal scaleMin/scaleMax) ---
+                lines.push('--- OUT-OF-RANGE VALUES ---');
+                var anyOutOfRange = false;
+                varNames.forEach(function(v) {
+                    var m = codebook[v];
+                    var lo = (m.rangeMin !== undefined) ? m.rangeMin : m.scaleMin;
+                    var hi = (m.rangeMax !== undefined) ? m.rangeMax : m.scaleMax;
+                    if (lo === undefined || hi === undefined || m.variableType !== 'NUMERIC') return;
+                    var missingSet = (m.missing || []).map(String);
+                    var flagged = [];
+                    allRows.forEach(function(row, idx) {
+                        var val = row[v];
+                        if (val === undefined || val === null || val === '' || missingSet.includes(String(val)))
+                            return;
+                        var num = Number(val);
+                        if (!isNaN(num) && (num < lo || num > hi)) flagged.push({ row: idx + 1, value: num });
+                    });
+                    if (flagged.length > 0) {
+                        anyOutOfRange = true;
+                        lines.push('  ' + v + ' (expected ' + lo + '–' + hi + '): ' + flagged.length +
+                            ' value(s) out of range');
+                        flagged.slice(0, 10).forEach(function(f) {
+                            lines.push('    - row ' + f.row + ': ' + f.value);
+                        });
+                        if (flagged.length > 10) lines.push('    ... and ' + (flagged.length - 10) + ' more');
+                    }
+                });
+                if (!anyOutOfRange) lines.push('No out-of-range values detected on any variable with a configured range.');
+                lines.push('');
+
+                lines.push('--- NOTES ---');
+                lines.push(
+                    'This summary flags potential issues for review; it does not modify the exported data. Cross-check flagged rows against source records before excluding or correcting them.');
+
+                return lines.join('\n');
             }
         }
 
@@ -2293,6 +2455,7 @@
                 allRows.length });
             const check = engine.validateSyntax(syntax);
             const codebookCsv = '\ufeff' + SPSSDataEngine.buildCodebookCSV(engine.codebook);
+            const qcSummary = SPSSDataEngine.buildQCSummary(engine.codebook, allRows, appState.project.name);
 
             downloadFile(csv, csvFileName, 'text/csv;charset=utf-8');
             setTimeout(function() {
@@ -2301,9 +2464,12 @@
             setTimeout(function() {
                 downloadFile(codebookCsv, 'SPSS_Codebook_' + safeName + '_' + t + '.csv', 'text/csv;charset=utf-8');
             }, 800);
+            setTimeout(function() {
+                downloadFile(qcSummary, 'SPSS_QC_Summary_' + safeName + '_' + t + '.txt', 'text/plain');
+            }, 1200);
 
             if (check.ok) {
-                showToast('SPSS files exported! (Data + Setup syntax + Codebook)', 'success');
+                showToast('SPSS files exported! (Data + Setup syntax + Codebook + QC summary)', 'success');
             } else {
                 showToast('Exported with warnings: ' + check.issues.join(' | '), 'warning');
             }
@@ -2536,10 +2702,12 @@
           var syntax=engine.generateSPSSSyntax(proj,{csvFileName:csvFileName, recordCount: allRows.length});
           var check=engine.validateSyntax(syntax);
           var codebookCsv='\\ufeff'+SPSSDataEngine.buildCodebookCSV(engine.codebook);
+          var qcSummary=SPSSDataEngine.buildQCSummary(engine.codebook, allRows, proj.name);
           dl(csv,csvFileName,'text/csv;charset=utf-8');
           setTimeout(function(){dl(syntax,'SPSS_Setup_'+safeName+'_'+t+'.sps','text/plain')},400);
           setTimeout(function(){dl(codebookCsv,'SPSS_Codebook_'+safeName+'_'+t+'.csv','text/csv;charset=utf-8')},800);
-          toast(check.ok?'SPSS files exported! (Data + Setup + Codebook)':'Exported with warnings — review syntax','success');
+          setTimeout(function(){dl(qcSummary,'SPSS_QC_Summary_'+safeName+'_'+t+'.txt','text/plain')},1200);
+          toast(check.ok?'SPSS files exported! (Data + Setup + Codebook + QC Summary)':'Exported with warnings — review syntax','success');
         }
 
         /* Bootstrap — always runs, even if a CDN failed */
