@@ -1118,7 +1118,14 @@
                     "'\n  /ENCODING='UTF8'\n";
                 syntax +=
                     "  /DELCASE=LINE\n  /DELIMITERS=','\n  /QUALIFIER='\"'\n  /ARRANGEMENT=DELIMITED\n  /FIRSTCASE=2\n  /VARIABLES=\n";
-                allVars.forEach(function(v) { syntax += '  ' + v + ' AUTO\n'; });
+                // Explicit type/width per variable (from the codebook) instead of AUTO.
+                // AUTO makes SPSS guess type/width from a data sample, which can silently
+                // mistype short numeric-looking IDs as NUMERIC and mis-size string fields —
+                // declaring the real format here removes the guesswork entirely.
+                allVars.forEach(function(v) {
+                    var m = self.codebook[v];
+                    syntax += '  ' + v + ' ' + (m.format || 'AUTO') + '\n';
+                });
                 syntax += '  .\nCACHE.\nEXECUTE.\nDATASET NAME DataSet1 WINDOW=FRONT.\n\n';
 
                 // 2. WIDTH & ALIGNMENT
@@ -1162,13 +1169,19 @@
                 syntax += 'EXECUTE.\n\n';
 
                 // 5. MULTIPLE RESPONSE SETS
+                // MDGROUP definitions and the DISPLAY confirmation must be subcommands of the
+                // SAME MRSETS command — issuing DISPLAY as a separate MRSETS call right after
+                // produces "No MRSET to display", since it doesn't reliably see sets defined
+                // by a prior, separate MRSETS command.
                 if (this.mrsetGroups.length > 0) {
                     syntax += '* 5. MULTIPLE RESPONSE SETS (checkbox items);\n';
-                    this.mrsetGroups.forEach(function(g) {
-                        syntax += 'MRSETS\n  /MDGROUP NAME=$' + g.name + ' LABEL="' + q(g.label) +
-                            '" VARIABLES=' + g.vars.join(' ') + ' VALUE=1.\n';
+                    syntax += 'MRSETS\n';
+                    this.mrsetGroups.forEach(function(g, i) {
+                        var sep = (i < self.mrsetGroups.length - 1) ? '\n' : '\n';
+                        syntax += '  /MDGROUP NAME=$' + g.name + ' LABEL="' + q(g.label) +
+                            '" VARIABLES=' + g.vars.join(' ') + ' VALUE=1' + sep;
                     });
-                    syntax += 'MRSETS\n  /DISPLAY NAME=[' + this.mrsetGroups.map(function(g) { return '$' + g
+                    syntax += '  /DISPLAY NAME=[' + this.mrsetGroups.map(function(g) { return '$' + g
                         .name; }).join(' ') + '].\n\n';
                 }
 
@@ -1206,7 +1219,7 @@
                 // 9. RECODE REVERSE-SCORED ITEMS
                 var reverseVars = allVars.filter(function(v) { return self.codebook[v].reverseScored; });
                 if (reverseVars.length > 0) {
-                    syntax += '* 9. RECODE REVERSE-SCORED ITEMS (run before scale totals below);\n';
+                    syntax += '* 9. RECODE REVERSE-SCORED ITEMS;\n';
                     reverseVars.forEach(function(v) {
                         var m = self.codebook[v];
                         var map = self.buildRecodeMap(m.scaleMin, m.scaleMax);
@@ -1216,45 +1229,14 @@
                     syntax += 'EXECUTE.\n\n';
                 }
 
-                // 10. SCALE COMPUTATIONS
-                allVars.forEach(function(v) {
-                    var m = self.codebook[v];
-                    if (m.scaleGroup) {
-                        if (!self.scaleGroups[m.scaleGroup]) self.scaleGroups[m.scaleGroup] = [];
-                        self.scaleGroups[m.scaleGroup].push(m.reverseScored ? (v + '_R') : v);
-                    }
-                });
-                var scaleNames = Object.keys(this.scaleGroups);
-                if (scaleNames.length > 0) {
-                    syntax += '* 10. SCALE COMPUTATIONS;\n';
-                    scaleNames.forEach(function(scaleName) {
-                        var cleanName = scaleName.replace(/\s+/g, '_').replace(/[^a-zA-Z0-9_]/g, '');
-                        var vars = self.scaleGroups[scaleName].join(', ');
-                        syntax += 'COMPUTE ' + cleanName + '_Total = SUM(' + vars + ').\n';
-                        syntax += 'COMPUTE ' + cleanName + '_Mean = MEAN(' + vars + ').\n';
-                        syntax += 'VARIABLE LABELS ' + cleanName + '_Total "Total Score for ' + q(scaleName) +
-                            '".\n';
-                        syntax += 'VARIABLE LABELS ' + cleanName + '_Mean "Mean Score for ' + q(scaleName) +
-                            '".\n';
-                        syntax += 'FORMATS ' + cleanName + '_Total ' + cleanName + '_Mean (F8.2).\n';
-                        syntax += 'VARIABLE LEVEL ' + cleanName + '_Total ' + cleanName + '_Mean (SCALE).\n\n';
-                    });
-                    syntax += 'EXECUTE.\n\n';
-                }
+                // NOTE: No ready-made scale computations (Total/Mean via COMPUTE) and no
+                // Reliability/Cronbach's Alpha block are generated here on purpose. This syntax's
+                // only job is to reproduce the questionnaire builder's variable names, types,
+                // labels, and value labels in SPSS — any scoring/statistics are left for you to
+                // run separately, on your own terms.
 
-                // 11. RELIABILITY
-                var reliableScales = scaleNames.filter(function(s) { return self.scaleGroups[s].length >= 2; });
-                if (reliableScales.length > 0) {
-                    syntax +=
-                        "* 11. RELIABILITY ANALYSIS (Cronbach's Alpha) — reverse items already recoded above;\n";
-                    reliableScales.forEach(function(scaleName) {
-                        var vars = self.scaleGroups[scaleName].join(' ');
-                        syntax += 'RELIABILITY VARIABLES=' + vars +
-                            '\n  /MODEL=ALPHA\n  /STATISTICS=DESCRIPTIVE SCALE CORR\n  /SUMMARY=TOTAL.\n\n';
-                    });
-                }
-
-                syntax += '* END OF SYNTAX — data is imported, labeled, and scale-scored. Ready for analysis.;\n';
+                syntax += '* END OF SYNTAX — data is imported with correct names, types, labels, and values.\n';
+                syntax += '* No computed scores/totals are created; add your own ANALYZE/COMPUTE steps separately as needed.;\n';
                 return syntax;
             }
 
