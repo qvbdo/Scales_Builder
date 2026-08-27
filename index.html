@@ -267,7 +267,9 @@
                         <input type="text" id="cfg-supabase-key" class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm font-mono" placeholder="Supabase API Key">
                         <div class="flex gap-2 mt-2">
                             <button onclick="testSupabaseConnection()" class="bg-green-600 text-white px-3 py-1 rounded text-xs font-bold hover:bg-green-700">Test Connection</button>
+                            <button onclick="publishProject()" class="bg-primary text-white px-3 py-1 rounded text-xs font-bold hover:opacity-90">📤 Publish Schema to Cloud</button>
                         </div>
+                        <p class="text-xs text-gray-500 mt-1">Publishing snapshots this questionnaire's variable names/types/labels/values into the <code>codebook_registry</code> table, so the database can validate every incoming submission against it (Phase 1 backend foundation — see <code>phase1_supabase_schema.sql</code>).</p>
                     </div>
                 </div>
             </div>
@@ -447,6 +449,19 @@
             </div>
             <div id="analytics-content" class="p-6 overflow-y-auto flex-1">
                 <!-- Charts injected here -->
+            </div>
+        </div>
+    </div>
+
+    <!-- Publish Schema Modal (Phase 1 — codebook registry) -->
+    <div id="modal-publish" class="fixed inset-0 z-50 hidden flex items-center justify-center modal-bg">
+        <div class="bg-white rounded-lg shadow-xl w-full max-w-lg overflow-hidden flex flex-col">
+            <div class="p-4 border-b flex justify-between items-center">
+                <h3 class="text-lg font-bold text-primary">Publish Schema to Cloud</h3>
+                <button onclick="closeModal('modal-publish')" class="text-gray-500 hover:text-gray-700 text-2xl">&times;</button>
+            </div>
+            <div id="publish-content" class="p-6 overflow-y-auto flex-1 space-y-4 text-sm">
+                <!-- Injected by renderPublishModal() -->
             </div>
         </div>
     </div>
@@ -730,6 +745,11 @@
 
                 if (this.project.supabaseUrl) {
                     try {
+                        // Stamp the project's publish token onto the record so it satisfies the
+                        // submissions_insert RLS policy in phase1_supabase_schema.sql (mirrors the
+                        // same stamp applied client-side in the exported collector's sav()/processQueue()).
+                        record.answers = record.answers || {};
+                        record.answers._publishToken = this.project.publishToken || '';
                         const response = await fetch(this.project.supabaseUrl, {
                             method: 'POST',
                             headers: {
@@ -1410,6 +1430,10 @@
                 pin: '',
                 supabaseUrl: '',
                 supabaseKey: '',
+                // Phase 1 — codebook registry publishing state
+                publishToken: '',
+                publishedAt: '',
+                publishedCodebookHash: '',
                 en: { title: '', authors: '', welcome: '' },
                 ar: { title: '', authors: '', welcome: '' },
                 pages: [{ id: 'page_1', title_en: 'Page 1', title_ar: 'الصفحة 1', items: [] }]
@@ -1856,6 +1880,9 @@
                         pin: '',
                         supabaseUrl: '',
                         supabaseKey: '',
+                        publishToken: '',
+                        publishedAt: '',
+                        publishedCodebookHash: '',
                         en: { title: '', authors: '', welcome: '' },
                         ar: { title: '', authors: '', welcome: '' },
                         pages: [{ id: 'page_1', title_en: 'Page 1', title_ar: 'الصفحة 1', items: [] }]
@@ -1911,6 +1938,116 @@
                 if (response.ok) showToast('Connection successful! Supabase is ready.', 'success');
                 else showToast('Connection failed: HTTP ' + response.status, 'error');
             } catch (e) { showToast('Connection error: ' + e.message, 'error'); }
+        }
+
+        // ==========================================
+        // 10c. PHASE 1 — CODEBOOK REGISTRY PUBLISHING
+        // ==========================================
+        // Builds the exact codebook + MRSET groups SPSSDataEngine would produce for this
+        // project, WITHOUT needing an actual submitted record — prepareDataForExport()'s
+        // codebook construction only depends on the questionnaire structure (item types,
+        // options, missing codes, etc.), not on the answer values passed in, so calling it
+        // once with empty answers is sufficient to capture the full schema.
+        function buildCodebookRegistryPayload(project) {
+            var engine = new SPSSDataEngine();
+            engine.prepareDataForExport({}, 0, project, '', {});
+            return { codebook: engine.codebook, mrsets: engine.mrsetGroups };
+        }
+
+        // Cheap, dependency-free content hash (djb2 over the JSON string) used only to let the
+        // UI show "unchanged since last publish" — NOT a cryptographic checksum. This mirrors
+        // the lightweight-checksum spirit of DataValidator.generateChecksum used elsewhere.
+        function hashString(str) {
+            var h = 5381;
+            for (var i = 0; i < str.length; i++) h = ((h * 33) ^ str.charCodeAt(i)) >>> 0;
+            return h.toString(16);
+        }
+
+        // Derives the codebook_registry REST endpoint from the submissions endpoint already
+        // configured in Cloud Config (e.g. ".../rest/v1/submissions" -> ".../rest/v1/codebook_registry"),
+        // so no second URL field is needed — one Supabase project, two tables, per
+        // phase1_supabase_schema.sql.
+        function registryEndpointFrom(supabaseUrl) {
+            return supabaseUrl.replace(/\/[^\/]*\/?$/, '/codebook_registry');
+        }
+
+        async function publishProject() {
+            const url = document.getElementById('cfg-supabase-url').value;
+            const key = document.getElementById('cfg-supabase-key').value;
+            if (!url) return showToast('Enter and save a Supabase REST URL first (Cloud Backend Config above).',
+                'error');
+            if (!appState.project.pages.some(function(p) { return (p.items || []).length > 0; })) {
+                return showToast('Add at least one question before publishing.', 'error');
+            }
+
+            const payload = buildCodebookRegistryPayload(appState.project);
+            const codebookJson = JSON.stringify(payload.codebook);
+            const hash = hashString(codebookJson + JSON.stringify(payload.mrsets));
+            const token = appState.project.publishToken || (crypto.randomUUID ? crypto.randomUUID() :
+                'tok_' + Date.now() + '_' + Math.random().toString(36).slice(2));
+
+            const registryUrl = registryEndpointFrom(url);
+            const body = {
+                projectId: appState.project.id,
+                token: token,
+                codebook: payload.codebook,
+                mrsets: payload.mrsets,
+                projectName: appState.project.name,
+                publishedAt: new Date().toISOString()
+            };
+
+            showToast('Publishing schema to cloud registry...', 'info');
+            try {
+                const response = await fetch(registryUrl, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'apikey': key || '',
+                        'Authorization': 'Bearer ' + (key || ''),
+                        // Upsert on projectId (primary key) — republishing after edits updates the
+                        // same registry row rather than creating duplicates or erroring on conflict.
+                        'Prefer': 'resolution=merge-duplicates,return=minimal'
+                    },
+                    body: JSON.stringify(body)
+                });
+                if (!response.ok) {
+                    const errText = await response.text().catch(function() { return ''; });
+                    throw new Error('HTTP ' + response.status + (errText ? ' — ' + errText : ''));
+                }
+                appState.project.publishToken = token;
+                appState.project.publishedAt = body.publishedAt;
+                appState.project.publishedCodebookHash = hash;
+                localStorage.setItem('clinical_project_state', JSON.stringify(appState));
+                showToast('Schema published! The database will now validate incoming submissions against it.',
+                    'success');
+                renderPublishModal();
+                document.getElementById('modal-publish').classList.remove('hidden');
+            } catch (e) {
+                showToast('Publish failed: ' + e.message +
+                    ' — has phase1_supabase_schema.sql been run on this Supabase project?', 'error');
+            }
+        }
+
+        function renderPublishModal() {
+            const p = appState.project;
+            const el = document.getElementById('publish-content');
+            if (!p.publishToken) {
+                el.innerHTML = '<p class="text-gray-500">This project has not been published yet.</p>';
+                return;
+            }
+            const shareHint = p.id + '?t=' + p.publishToken;
+            el.innerHTML =
+                '<div><label class="block text-xs font-medium text-gray-500 mb-1">Project ID (used by the collector to fetch this schema)</label>' +
+                '<input readonly class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm font-mono bg-gray-50" value="' +
+                esc(p.id) + '" onclick="this.select()"></div>' +
+                '<div><label class="block text-xs font-medium text-gray-500 mb-1">Publish Token (insert-only credential — do not treat as secret-key strength)</label>' +
+                '<input readonly class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm font-mono bg-gray-50" value="' +
+                esc(p.publishToken) + '" onclick="this.select()"></div>' +
+                '<div><label class="block text-xs font-medium text-gray-500 mb-1">Combined reference (for the Phase 3 hosted link, once deployed)</label>' +
+                '<input readonly class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm font-mono bg-gray-50" value="' +
+                esc(shareHint) + '" onclick="this.select()"></div>' +
+                '<p class="text-xs text-gray-500">Last published: ' + esc(new Date(p.publishedAt).toLocaleString()) +
+                '. Re-publish any time after editing the questionnaire — the registry row is updated in place, and every already-collected submission stays valid against the new schema unless a variable was renamed or removed.</p>';
         }
 
         // ==========================================
@@ -2636,7 +2773,7 @@
         function toast(msg,type){var t=document.createElement('div');t.className='toast toast-'+type;t.textContent=msg;document.body.appendChild(t);setTimeout(function(){t.classList.add('show')},10);setTimeout(function(){t.classList.remove('show');setTimeout(function(){t.remove()},300)},3000)}
         function updConn(){var d=document.getElementById('conn-dot'),x=document.getElementById('conn-text');if(navigator.onLine){d.className='sync-indicator sync-dot-synced';x.textContent='Online'}else{d.className='sync-indicator sync-dot-failed';x.textContent='Offline'}}
         window.addEventListener('online',function(){updConn();if(isOnlineMode)processQueue()});window.addEventListener('offline',updConn);
-        async function processQueue(){if(!navigator.onLine||!isOnlineMode||!proj.supabaseUrl)return;var pending=await qAll();if(pending.length===0)return;toast('Syncing '+pending.length+'...','info');for(var rec of pending){try{var r=await fetch(proj.supabaseUrl,{method:'POST',headers:{'Content-Type':'application/json','apikey':proj.supabaseKey||'','Authorization':'Bearer '+(proj.supabaseKey||''),'Prefer':'resolution=merge-duplicates'},body:JSON.stringify(rec)});if(r.ok){rec._syncStatus='synced';await subPut(rec);await qDel(rec.id)}}catch(e){}}updDash();}
+        async function processQueue(){if(!navigator.onLine||!isOnlineMode||!proj.supabaseUrl)return;var pending=await qAll();if(pending.length===0)return;toast('Syncing '+pending.length+'...','info');for(var rec of pending){try{rec.answers=rec.answers||{};rec.answers._publishToken=proj.publishToken||'';var r=await fetch(proj.supabaseUrl,{method:'POST',headers:{'Content-Type':'application/json','apikey':proj.supabaseKey||'','Authorization':'Bearer '+(proj.supabaseKey||''),'Prefer':'resolution=merge-duplicates'},body:JSON.stringify(rec)});if(r.ok){rec._syncStatus='synced';await subPut(rec);await qDel(rec.id)}}catch(e){}}updDash();}
         function goTo(id){['intro','int','dash'].forEach(function(x){document.getElementById('v-'+x).classList.add('hidden')});document.getElementById('v-'+id).classList.remove('hidden');if(id==='intro'){var l=proj[lang];document.getElementById('in-title').textContent=l.title||'';document.getElementById('in-authors').textContent=l.authors||'';document.getElementById('in-welcome').textContent=l.welcome||''}}
         var editId = null;
         function startInt(){pg=0;st=Date.now();editId=null;ren()}
@@ -2650,7 +2787,7 @@
         function nxt(){if(val()){pg++;ren();window.scrollTo(0,0)}}function prv(){pg--;ren();window.scrollTo(0,0)}
         function initSigs(){proj.pages[pg].items.filter(function(q){return q.type==='signature'}).forEach(function(q){var c=document.getElementById('sig-'+q.id);if(!c)return;var x=c.getContext('2d'),d=false;function gp(e){var r=c.getBoundingClientRect();return{x:(e.touches?e.touches[0].clientX:e.clientX)-r.left,y:(e.touches?e.touches[0].clientY:e.clientY)-r.top}}function sd(e){d=true;var p=gp(e);x.beginPath();x.moveTo(p.x,p.y);e.preventDefault()}function dr(e){if(!d)return;var p=gp(e);x.lineTo(p.x,p.y);x.stroke();e.preventDefault()}function ed(e){d=false;ans[q.vName||q.id]=c.toDataURL();e.preventDefault()}c.addEventListener('mousedown',sd);c.addEventListener('mousemove',dr);c.addEventListener('mouseup',ed);c.addEventListener('mouseout',ed);c.addEventListener('touchstart',sd);c.addEventListener('touchmove',dr);c.addEventListener('touchend',ed)})}
         window.cls=function(id,vn){var c=document.getElementById('sig-'+id);if(c){c.getContext('2d').clearRect(0,0,c.width,c.height);delete ans[vn]}}
-        async function sav(){if(!val())return;evL();ans._duration_sec=Math.round((Date.now()-st)/1000);var rec={id:editId||(crypto.randomUUID?crypto.randomUUID():'rec_'+Date.now()),participantId:pid,projectId:proj.id,timestamp:Date.now(),language:lang,answers:ans,_syncStatus:'pending'};var wasEdit=!!editId;editId=null;await subPut(rec);if(isOnlineMode&&navigator.onLine&&proj.supabaseUrl){try{await fetch(proj.supabaseUrl,{method:'POST',headers:{'Content-Type':'application/json','apikey':proj.supabaseKey||'','Authorization':'Bearer '+(proj.supabaseKey||''),'Prefer':'resolution=merge-duplicates'},body:JSON.stringify(rec)});rec._syncStatus='synced';await subPut(rec);toast(wasEdit?'Record updated & synced!':'Saved & synced!','success')}catch(e){await qPut(rec);toast(wasEdit?'Updated locally. Will sync.':'Saved locally. Will sync.','warning')}}else{toast(wasEdit?'Record updated.':'Saved locally.','success')}ans={};pid='';document.getElementById('p-id').value='';pg=0;goTo('intro')}
+        async function sav(){if(!val())return;evL();ans._duration_sec=Math.round((Date.now()-st)/1000);ans._publishToken=proj.publishToken||'';var rec={id:editId||(crypto.randomUUID?crypto.randomUUID():'rec_'+Date.now()),participantId:pid,projectId:proj.id,timestamp:Date.now(),language:lang,answers:ans,_syncStatus:'pending'};var wasEdit=!!editId;editId=null;await subPut(rec);if(isOnlineMode&&navigator.onLine&&proj.supabaseUrl){try{await fetch(proj.supabaseUrl,{method:'POST',headers:{'Content-Type':'application/json','apikey':proj.supabaseKey||'','Authorization':'Bearer '+(proj.supabaseKey||''),'Prefer':'resolution=merge-duplicates'},body:JSON.stringify(rec)});rec._syncStatus='synced';await subPut(rec);toast(wasEdit?'Record updated & synced!':'Saved & synced!','success')}catch(e){await qPut(rec);toast(wasEdit?'Updated locally. Will sync.':'Saved locally. Will sync.','warning')}}else{toast(wasEdit?'Record updated.':'Saved locally.','success')}ans={};pid='';document.getElementById('p-id').value='';pg=0;goTo('intro')}
         function checkPin(){var c=prompt('Enter PIN:');if(c===proj.pin){goTo('dash');updDash()}else if(c!==null)alert('Access Denied')}
         async function updDash(){var d=await subAll();document.getElementById('d-count').textContent=d.length;var s=d.filter(function(r){return r._syncStatus==='synced'}).length;var p=d.length-s;document.getElementById('d-synced').textContent=s;document.getElementById('d-pending').textContent=p;var l=document.getElementById('d-list');l.innerHTML=d.length===0?'<p class="text-center text-gray-500 py-4">No data.</p>':d.map(function(x){return '<div class="p-3 border rounded flex justify-between items-center"><div><span class="font-bold">'+esc(x.participantId)+'</span><span class="text-xs text-gray-500 ml-2">'+new Date(x.timestamp).toLocaleString()+'</span></div><div class="flex gap-2"><button data-act="edt" data-id="'+x.id+'" class="text-xs bg-yellow-100 text-yellow-700 px-2 py-1 rounded">Edit</button><button data-act="del" data-id="'+x.id+'" class="text-xs bg-red-100 text-red-700 px-2 py-1 rounded">Delete</button></div></div>'}).join('')}
         document.addEventListener('click',function(e){var el=e.target.closest&&e.target.closest('[data-act="edt"],[data-act="del"]');if(!el)return;var id=el.getAttribute('data-id');if(el.getAttribute('data-act')==='edt')edt(id);else del(id)});
