@@ -1434,6 +1434,8 @@
                 publishToken: '',
                 publishedAt: '',
                 publishedCodebookHash: '',
+                // Phase 2 — where the Generic Collector Shell is hosted (see publishProject())
+                collectorBaseUrl: '',
                 en: { title: '', authors: '', welcome: '' },
                 ar: { title: '', authors: '', welcome: '' },
                 pages: [{ id: 'page_1', title_en: 'Page 1', title_ar: 'الصفحة 1', items: [] }]
@@ -1883,6 +1885,7 @@
                         publishToken: '',
                         publishedAt: '',
                         publishedCodebookHash: '',
+                        collectorBaseUrl: '',
                         en: { title: '', authors: '', welcome: '' },
                         ar: { title: '', authors: '', welcome: '' },
                         pages: [{ id: 'page_1', title_en: 'Page 1', title_ar: 'الصفحة 1', items: [] }]
@@ -1954,6 +1957,21 @@
             return { codebook: engine.codebook, mrsets: engine.mrsetGroups };
         }
 
+        // Phase 2 — strips anything a public reader of codebook_registry should never see before
+        // it's stored as "projectConfig". codebook_registry is publicly SELECT-able (the generic
+        // collector shell has to be able to fetch a project's questionnaire to render it), so the
+        // Supabase URL/key and the admin PIN must never be embedded in that row — the shell brings
+        // its own Supabase URL/key (baked in once at shell-deploy time), and the PIN-gated
+        // dashboard view is not something a public collector link needs at all.
+        function sanitizeProjectConfigForPublish(project) {
+            var clone = JSON.parse(JSON.stringify(project));
+            delete clone.supabaseUrl;
+            delete clone.supabaseKey;
+            delete clone.pin;
+            delete clone.publishToken; // the token travels in the URL/registry row, not inside projectConfig
+            return clone;
+        }
+
         // Cheap, dependency-free content hash (djb2 over the JSON string) used only to let the
         // UI show "unchanged since last publish" — NOT a cryptographic checksum. This mirrors
         // the lightweight-checksum spirit of DataValidator.generateChecksum used elsewhere.
@@ -1969,6 +1987,16 @@
         // phase1_supabase_schema.sql.
         function registryEndpointFrom(supabaseUrl) {
             return supabaseUrl.replace(/\/[^\/]*\/?$/, '/codebook_registry');
+        }
+
+        // Builds the full shareable collector link once a collector shell base URL is known
+        // (Phase 3 hosts this on Cloudflare Pages; until then, the researcher can still test the
+        // shell locally by opening the downloaded HTML file directly with the same query string).
+        function buildShareLink(project) {
+            if (!project.publishToken) return '';
+            var base = (project.collectorBaseUrl || '').trim().replace(/\/$/, '');
+            var qs = '?p=' + encodeURIComponent(project.id) + '&t=' + encodeURIComponent(project.publishToken);
+            return base ? (base + '/' + qs) : ('(set a Collector Base URL below)' + qs);
         }
 
         async function publishProject() {
@@ -1992,11 +2020,12 @@
                 token: token,
                 codebook: payload.codebook,
                 mrsets: payload.mrsets,
+                projectConfig: sanitizeProjectConfigForPublish(appState.project),
                 projectName: appState.project.name,
                 publishedAt: new Date().toISOString()
             };
 
-            showToast('Publishing schema to cloud registry...', 'info');
+            showToast('Publishing schema + questionnaire to cloud registry...', 'info');
             try {
                 const response = await fetch(registryUrl, {
                     method: 'POST',
@@ -2018,14 +2047,19 @@
                 appState.project.publishedAt = body.publishedAt;
                 appState.project.publishedCodebookHash = hash;
                 localStorage.setItem('clinical_project_state', JSON.stringify(appState));
-                showToast('Schema published! The database will now validate incoming submissions against it.',
-                    'success');
+                showToast('Published! Live link is ready — open it from the Publish modal.', 'success');
                 renderPublishModal();
                 document.getElementById('modal-publish').classList.remove('hidden');
             } catch (e) {
                 showToast('Publish failed: ' + e.message +
                     ' — has phase1_supabase_schema.sql been run on this Supabase project?', 'error');
             }
+        }
+
+        function saveCollectorBaseUrl() {
+            appState.project.collectorBaseUrl = document.getElementById('publish-collector-base').value.trim();
+            localStorage.setItem('clinical_project_state', JSON.stringify(appState));
+            renderPublishModal();
         }
 
         function renderPublishModal() {
@@ -2035,19 +2069,30 @@
                 el.innerHTML = '<p class="text-gray-500">This project has not been published yet.</p>';
                 return;
             }
-            const shareHint = p.id + '?t=' + p.publishToken;
+            const link = buildShareLink(p);
+            const qrSrc = (p.collectorBaseUrl ? 'https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=' +
+                encodeURIComponent(link) : '');
             el.innerHTML =
-                '<div><label class="block text-xs font-medium text-gray-500 mb-1">Project ID (used by the collector to fetch this schema)</label>' +
+                '<div><label class="block text-xs font-medium text-gray-500 mb-1">Collector Base URL (where you\'ve hosted the Generic Collector Shell — e.g. your Cloudflare Pages URL)</label>' +
+                '<div class="flex gap-2"><input id="publish-collector-base" class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm font-mono" placeholder="https://your-site.pages.dev" value="' +
+                esc(p.collectorBaseUrl || '') + '">' +
+                '<button onclick="saveCollectorBaseUrl()" class="btn-primary px-3 py-2 rounded-md text-sm whitespace-nowrap">Save</button></div></div>' +
+                '<div><label class="block text-xs font-medium text-gray-500 mb-1">Shareable Link</label>' +
+                '<input readonly class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm font-mono bg-gray-50" value="' +
+                esc(link) + '" onclick="this.select()"></div>' +
+                (qrSrc ? '<div class="text-center"><img src="' + qrSrc +
+                    '" alt="QR code for collector link" class="inline-block border rounded p-2 bg-white"></div>' :
+                    '') +
+                '<div><label class="block text-xs font-medium text-gray-500 mb-1">Project ID</label>' +
                 '<input readonly class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm font-mono bg-gray-50" value="' +
                 esc(p.id) + '" onclick="this.select()"></div>' +
                 '<div><label class="block text-xs font-medium text-gray-500 mb-1">Publish Token (insert-only credential — do not treat as secret-key strength)</label>' +
                 '<input readonly class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm font-mono bg-gray-50" value="' +
                 esc(p.publishToken) + '" onclick="this.select()"></div>' +
-                '<div><label class="block text-xs font-medium text-gray-500 mb-1">Combined reference (for the Phase 3 hosted link, once deployed)</label>' +
-                '<input readonly class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm font-mono bg-gray-50" value="' +
-                esc(shareHint) + '" onclick="this.select()"></div>' +
                 '<p class="text-xs text-gray-500">Last published: ' + esc(new Date(p.publishedAt).toLocaleString()) +
-                '. Re-publish any time after editing the questionnaire — the registry row is updated in place, and every already-collected submission stays valid against the new schema unless a variable was renamed or removed.</p>';
+                '. Re-publish any time after editing the questionnaire — the registry row is updated in place, and every already-collected submission stays valid against the new schema unless a variable was renamed or removed.</p>' +
+                '<div class="pt-2 border-t"><button onclick="exportGenericCollectorShell()" class="btn-outline px-3 py-1.5 rounded-md text-sm w-full">⬇️ Download Generic Collector Shell (.html)</button>' +
+                '<p class="text-xs text-gray-500 mt-1">Deploy this ONE file once (e.g. to Cloudflare Pages) as your Collector Base URL above — it dynamically loads any project you publish by its Project ID, so you never re-deploy it per questionnaire.</p></div>';
         }
 
         // ==========================================
@@ -2832,6 +2877,213 @@
         /* Bootstrap — always runs, even if a CDN failed */
         try { updConn(); } catch(e) {}
         try { goTo('intro'); } catch(e) { alert('Startup error: ' + e.message); }
+        <\/script>
+        <\/body>
+        <\/html>`;
+        }
+
+        // ==========================================
+        // 15b. PHASE 2 — GENERIC COLLECTOR SHELL
+        // ==========================================
+        // Unlike buildStandaloneApp() (which bakes ONE project's full state into the file, so a
+        // new export is needed after every edit), this shell is deployed ONCE — to Cloudflare
+        // Pages or any static host — and loads WHATEVER project a link points it at, by fetching
+        // that project's sanitized projectConfig from codebook_registry at runtime. This is the
+        // actual "questionnaire -> distributable link" piece from the implementation plan.
+        //
+        // Deliberately simpler than the per-project export: no admin PIN/Dashboard view is
+        // included here (codebook_registry, which this shell reads, is publicly SELECT-able and
+        // therefore never contains the project PIN — see sanitizeProjectConfigForPublish()).
+        // Reviewing collected data stays a dashboard-only action via Pull Cloud Data, using the
+        // dashboard's own Supabase credentials, not something exposed on a public survey link.
+        function exportGenericCollectorShell() {
+            const url = document.getElementById('cfg-supabase-url').value || appState.project.supabaseUrl;
+            const key = document.getElementById('cfg-supabase-key').value || appState.project.supabaseKey;
+            if (!url) return showToast('Configure and save a Supabase REST URL first (Cloud Backend Config).',
+                'error');
+            const shell = buildGenericCollectorShell(url, key);
+            downloadFile(shell, 'Generic_Collector_Shell.html', 'text/html');
+            showToast(
+                'Shell downloaded! Deploy this ONE file to your host (e.g. Cloudflare Pages) — it works for every project you publish.',
+                'success');
+        }
+
+        function buildGenericCollectorShell(supabaseSubmissionsUrl, supabaseKey) {
+            const registryUrl = registryEndpointFrom(supabaseSubmissionsUrl);
+            const submissionsUrl = supabaseSubmissionsUrl;
+            const keyLit = JSON.stringify(supabaseKey || '');
+            const registryLit = JSON.stringify(registryUrl);
+            const submissionsLit = JSON.stringify(submissionsUrl);
+            return `<!DOCTYPE html>
+        <html lang="en" dir="auto">
+        <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Questionnaire</title>
+        <script src="https://cdn.tailwindcss.com"><\/script>
+        <script src="https://unpkg.com/dexie/dist/dexie.js"><\/script>
+        <style>
+        :root{--theme-color:#2563eb}
+        .btn-primary{background-color:var(--theme-color);color:white}
+        .sig-canvas{border:2px dashed #9ca3af;border-radius:8px;background:white;cursor:crosshair;touch-action:none}
+        .toast{position:fixed;bottom:20px;right:20px;padding:12px 20px;border-radius:8px;color:white;font-weight:bold;z-index:100;transition:all .3s;transform:translateY(100px);opacity:0}
+        .toast.show{transform:translateY(0);opacity:1}
+        .toast-info{background:#3b82f6}.toast-success{background:#10b981}.toast-warning{background:#f59e0b}.toast-error{background:#ef4444}
+        .sync-indicator{width:10px;height:10px;border-radius:50%;display:inline-block;margin-right:6px}
+        .sync-dot-pending{background:#f59e0b;animation:pulse 1.5s infinite}
+        .sync-dot-synced{background:#10b981}
+        .sync-dot-failed{background:#ef4444}
+        @keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
+        /* Fallback layout so the app still works if Tailwind CDN fails */
+        .hidden{display:none!important}
+        body{margin:0;font-family:'Segoe UI',Tahoma,sans-serif;background:#f9fafb;color:#1f2937}
+        .max-w-3xl{max-width:48rem;margin:0 auto}
+        .bg-white{background:#fff}.p-2{padding:.5rem}.p-4{padding:1rem}.p-6{padding:1.5rem}.p-8{padding:2rem}
+        .rounded,.rounded-lg{border-radius:.5rem}.shadow{box-shadow:0 1px 3px rgba(0,0,0,.15)}
+        .mb-3{margin-bottom:.75rem}.mb-4{margin-bottom:1rem}.mb-6{margin-bottom:1.5rem}.mt-2{margin-top:.5rem}
+        .flex{display:flex}.justify-between{justify-content:space-between}.items-center{align-items:center}
+        .gap-2{gap:.5rem}.flex-1{flex:1}.justify-end{justify-content:flex-end}
+        .space-y-2>*+*{margin-top:.5rem}.space-y-6>*+*{margin-top:1.5rem}
+        button{cursor:pointer;border:0;border-radius:.375rem;padding:.5rem 1rem;font-weight:700}
+        input,textarea{border:1px solid #d1d5db;border-radius:.375rem;padding:.5rem;width:100%;box-sizing:border-box}
+        label{margin-bottom:.5rem}
+        .text-red-500{color:#ef4444}.text-sm{font-size:.875rem}.text-xs{font-size:.75rem}
+        .font-bold{font-weight:700}.text-center{text-align:center}
+        <\/style>
+        <\/head>
+        <body class="bg-gray-50 font-sans p-4">
+        <div class="max-w-3xl mx-auto">
+
+        <div id="v-loading" class="bg-white p-8 rounded-lg shadow text-center">
+        <p class="font-bold text-lg">Loading questionnaire...</p>
+        <p class="text-sm text-gray-500 mt-2">If this takes more than a few seconds, check your connection.</p>
+        <\/div>
+
+        <div id="v-error" class="hidden bg-white p-8 rounded-lg shadow text-center border-t-4 border-red-500">
+        <p class="font-bold text-lg text-red-600">Unable to load this questionnaire</p>
+        <p id="err-msg" class="text-sm text-gray-600 mt-2"><\/p>
+        <\/div>
+
+        <div id="v-app" class="hidden">
+        <div class="bg-white p-4 rounded-lg shadow mb-4 flex justify-between items-center border-t-4" style="border-color:var(--theme-color)">
+        <h1 id="app-title" class="text-xl font-bold"><\/h1>
+        <button onclick="togL()" class="text-sm text-gray-500 hover:text-gray-700">EN / AR</button>
+        <\/div>
+        <div id="v-intro" class="bg-white p-8 rounded-lg shadow text-center">
+        <h2 id="in-title" class="text-2xl font-bold mb-2"><\/h2>
+        <p id="in-authors" class="text-gray-500 mb-4"><\/p>
+        <p id="in-welcome" class="mb-6 text-left"><\/p>
+        <button onclick="startInt()" class="btn-primary px-6 py-3 rounded-lg font-bold">Start / ابدأ<\/button>
+        <\/div>
+        <div id="v-int" class="hidden bg-white p-6 rounded-lg shadow">
+        <div class="flex justify-between items-center mb-2"><h3 id="s-title" class="font-bold"><\/h3><span id="s-prog" class="text-xs text-gray-500"><\/span><\/div>
+        <div id="id-con" class="mb-4"><label class="block text-sm font-bold mb-1">Participant ID<\/label><input id="p-id" oninput="pid=this.value" class="w-full p-2 border rounded"><\/div>
+        <div id="q-con" class="space-y-6"><\/div>
+        <div class="flex justify-between mt-6 pt-4 border-t">
+        <button id="b-prv" onclick="prv()" class="hidden bg-gray-200 px-4 py-2 rounded font-bold">Back<\/button>
+        <div class="flex-1"><\/div>
+        <button id="b-nxt" onclick="nxt()" class="btn-primary px-4 py-2 rounded font-bold">Next<\/button>
+        <button id="b-sav" onclick="sav()" class="hidden bg-green-600 text-white px-4 py-2 rounded font-bold">Submit<\/button>
+        <\/div>
+        <\/div>
+        <div class="text-center mt-3 text-xs text-gray-400">
+        <span id="conn-dot" class="sync-indicator sync-dot-synced"><\/span><span id="conn-text">Online<\/span>
+        <\/div>
+        <\/div>
+
+        <\/div>
+        <script>
+        var SUPABASE_SUBMISSIONS_URL = ${submissionsLit};
+        var SUPABASE_REGISTRY_URL = ${registryLit};
+        var SUPABASE_KEY = ${keyLit};
+
+        function esc(s){return s==null?'':String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')}
+        function toast(msg,type){var t=document.createElement('div');t.className='toast toast-'+type;t.textContent=msg;document.body.appendChild(t);setTimeout(function(){t.classList.add('show')},10);setTimeout(function(){t.classList.remove('show');setTimeout(function(){t.remove()},300)},3000)}
+        function showError(msg){document.getElementById('v-loading').classList.add('hidden');document.getElementById('err-msg').textContent=msg;document.getElementById('v-error').classList.remove('hidden')}
+
+        /* ---- URL params: ?p=<projectId>&t=<publishToken> ---- */
+        var urlParams = new URLSearchParams(window.location.search);
+        var PROJECT_ID = urlParams.get('p') || '';
+        var PUB_TOKEN = urlParams.get('t') || '';
+        var proj = null;
+
+        /* Storage layer: Dexie if the CDN loaded, otherwise localStorage fallback (never crashes) */
+        var db = null;
+        try { if (window.Dexie) { db = new Dexie("CollectorDB"); db.version(1).stores({submissions:'id',syncQueue:'id'}); } } catch(e) { db = null; }
+        function _lsGet(k){ try { return JSON.parse(localStorage.getItem(k) || '[]'); } catch(e) { return []; } }
+        function _lsSet(k,v){ try { localStorage.setItem(k, JSON.stringify(v)); } catch(e) {} }
+        function subPut(r){ if(db) return db.submissions.put(r); var a=_lsGet('c_sub').filter(function(x){return x.id!==r.id}); a.push(r); _lsSet('c_sub',a); return Promise.resolve(); }
+        function subGet(id){ if(db) return db.submissions.get(id); return Promise.resolve(_lsGet('c_sub').find(function(x){return x.id===id})); }
+        function subAll(){ if(db) return db.submissions.toArray(); return Promise.resolve(_lsGet('c_sub')); }
+        function qPut(r){ if(db) return db.syncQueue.put(r); var a=_lsGet('c_queue').filter(function(x){return x.id!==r.id}); a.push(r); _lsSet('c_queue',a); return Promise.resolve(); }
+        function qDel(id){ if(db) return db.syncQueue.delete(id); _lsSet('c_queue',_lsGet('c_queue').filter(function(x){return x.id!==id})); return Promise.resolve(); }
+        function qAll(){ if(db) return db.syncQueue.toArray(); return Promise.resolve(_lsGet('c_queue')); }
+
+        var pg = 0, ans = {}, lang = 'en', pid = '', st = 0;
+        var SKIP_LOGIC_NA = '__SKIP_LOGIC_NA__';
+
+        function updConn(){var d=document.getElementById('conn-dot'),x=document.getElementById('conn-text');if(!d)return;if(navigator.onLine){d.className='sync-indicator sync-dot-synced';x.textContent='Online'}else{d.className='sync-indicator sync-dot-failed';x.textContent='Offline'}}
+        window.addEventListener('online',function(){updConn();processQueue()});window.addEventListener('offline',updConn);
+
+        async function processQueue(){if(!navigator.onLine||!SUPABASE_SUBMISSIONS_URL)return;var pending=await qAll();if(pending.length===0)return;toast('Syncing '+pending.length+'...','info');for(var rec of pending){try{rec.answers=rec.answers||{};rec.answers._publishToken=PUB_TOKEN;var r=await fetch(SUPABASE_SUBMISSIONS_URL,{method:'POST',headers:{'Content-Type':'application/json','apikey':SUPABASE_KEY,'Authorization':'Bearer '+SUPABASE_KEY,'Prefer':'resolution=merge-duplicates'},body:JSON.stringify(rec)});if(r.ok){rec._syncStatus='synced';await subPut(rec)}await qDel(rec.id)}catch(e){}}}
+
+        function goTo(id){['intro','int'].forEach(function(x){var el=document.getElementById('v-'+x);if(el)el.classList.add('hidden')});var target=document.getElementById('v-'+id);if(target)target.classList.remove('hidden');if(id==='intro'){var l=proj[lang];document.getElementById('in-title').textContent=l.title||'';document.getElementById('in-authors').textContent=l.authors||'';document.getElementById('in-welcome').textContent=l.welcome||''}}
+        var editId = null;
+        function startInt(){pg=0;st=Date.now();editId=null;ren();goTo('int')}
+        function togL(){lang=lang==='en'?'ar':'en';document.documentElement.dir=lang==='ar'?'rtl':'ltr';if(!document.getElementById('v-intro').classList.contains('hidden'))goTo('intro');else ren()}
+        function isH(q){if(!q.showIf||!q.showIf.vName)return false;return String(ans[q.showIf.vName])!==String(q.showIf.value)}
+        function evL(){proj.pages[pg].items.forEach(function(q){var el=document.getElementById('qi-'+q.id);if(el){var isHidden=isH(q);el.classList.toggle('hidden',isHidden);var vn=q.vName||q.id;if(isHidden)ans[vn]=SKIP_LOGIC_NA;else if(ans[vn]===SKIP_LOGIC_NA)delete ans[vn]}})}
+        function val(){if(pg===0&&(!pid||pid.trim()==='')){alert('Participant ID required');return false}var p=proj.pages[pg];for(var i=0;i<p.items.length;i++){var q=p.items[i];if(isH(q))continue;var v=ans[q.vName||q.id],ok=v!==undefined&&v!==null&&v!==''&&!(Array.isArray(v)&&v.length===0);if(q.req&&!ok){alert('Required: '+(q['title_'+lang]||q.title_en));return false}if(q.type==='number'&&ok){var n=Number(v);if(isNaN(n)){alert((q['title_'+lang]||q.title_en)+' must be a valid number');return false}if(q.min!==undefined&&n<q.min){alert('Min: '+q.min);return false}if(q.max!==undefined&&n>q.max){alert('Max: '+q.max);return false}}}return true}
+        function ren(){var p=proj.pages[pg];document.getElementById('s-title').textContent=p['title_'+lang]||p.title_en;document.getElementById('s-prog').textContent='Page '+(pg+1)+' of '+proj.pages.length;document.getElementById('id-con').classList.toggle('hidden',pg!==0);if(pg===0)document.getElementById('p-id').value=pid;document.getElementById('q-con').innerHTML=p.items.map(function(q){var vn=q.vName||q.id;var t=q['title_'+lang]||q.title_en;var r=q.req?'<span class="text-red-500">*</span>':'';var h='';if(q.type==='text')h='<textarea class="w-full p-3 border rounded" data-vn="'+esc(vn)+'" data-act="text">'+esc(ans[vn]||'')+'</textarea>';else if(q.type==='number')h='<input type="number" class="w-full p-3 border rounded" data-vn="'+esc(vn)+'" data-act="num" value="'+esc(ans[vn]||'')+'">';else if(q.type==='binary'||q.type==='mcq')h='<div class="space-y-2">'+(q.options||[]).map(function(o){return '<label class="flex items-center gap-3 p-3 border rounded cursor-pointer"><input type="radio" name="'+q.id+'" value="'+o.value+'" data-vn="'+esc(vn)+'" data-act="num" '+(ans[vn]===o.value?'checked':'')+' class="w-5 h-5"><span>'+esc(o['label_'+lang]||o.label_en)+'</span></label>'}).join('')+'</div>';else if(q.type==='checkbox')h='<div class="space-y-2">'+(q.options||[]).map(function(o){var a=Array.isArray(ans[vn])?ans[vn]:[];return '<label class="flex items-center gap-3 p-3 border rounded cursor-pointer"><input type="checkbox" value="'+o.value+'" data-vn="'+esc(vn)+'" data-act="multi" '+(a.includes(o.value)?'checked':'')+' class="w-5 h-5"><span>'+esc(o['label_'+lang]||o.label_en)+'</span></label>'}).join('')+'</div>';else if(q.type==='likert')h='<div class="flex flex-wrap justify-between gap-2 bg-gray-50 p-4 rounded border">'+(q.options||[]).map(function(o){return '<label class="flex flex-col items-center flex-1 text-center cursor-pointer min-w-[70px]"><input type="radio" name="'+q.id+'" value="'+o.value+'" data-vn="'+esc(vn)+'" data-act="num" '+(ans[vn]===o.value?'checked':'')+' class="w-5 h-5 mb-2"><span class="text-xs font-semibold">'+esc(o['label_'+lang]||o.label_en)+'</span></label>'}).join('')+'</div>';else if(q.type==='scale10')h='<div class="flex flex-wrap justify-between gap-1 bg-gray-50 p-4 rounded border">'+[1,2,3,4,5,6,7,8,9,10].map(function(n){return '<label class="flex flex-col items-center flex-1 cursor-pointer min-w-[40px]"><input type="radio" name="'+q.id+'" value="'+n+'" data-vn="'+esc(vn)+'" data-act="num" '+(ans[vn]===n?'checked':'')+' class="w-5 h-5 mb-2"><span class="text-sm font-bold">'+n+'</span></label>'}).join('')+'</div>';else if(q.type==='signature')h='<div class="sig-canvas p-2"><canvas id="sig-'+q.id+'" width="400" height="150" class="w-full bg-white" style="max-width:100%"></canvas><div class="flex justify-end mt-2"><button type="button" data-act="clearsig" data-qid="'+q.id+'" data-vn="'+esc(vn)+'" class="text-sm bg-red-100 text-red-600 px-3 py-1 rounded">Clear</button></div></div>';else if(q.type==='camera')h='<div class="p-4 border-2 border-dashed border-gray-400 rounded bg-gray-50 text-center"><input type="file" accept="image/*" capture="environment" data-vn="'+esc(vn)+'" data-act="camera" class="w-full"></div>';return '<div id="qi-'+q.id+'" class="'+(isH(q)?'hidden':'')+'"><label class="block font-bold mb-2">'+esc(t)+' '+r+'</label>'+h+'</div>'}).join('');document.getElementById('b-prv').classList.toggle('hidden',pg===0);document.getElementById('b-nxt').classList.toggle('hidden',pg===proj.pages.length-1);document.getElementById('b-sav').classList.toggle('hidden',pg!==proj.pages.length-1);initSigs();evL()}
+        document.addEventListener('change',function(e){var el=e.target,act=el.getAttribute&&el.getAttribute('data-act');if(!act)return;var vn=el.getAttribute('data-vn');if(act==='text'){ans[vn]=el.value;evL()}else if(act==='num'){ans[vn]=Number(el.value);evL()}else if(act==='multi'){var arr=Array.isArray(ans[vn])?ans[vn]:[];var v=Number(el.value);if(el.checked){if(!arr.includes(v))arr.push(v)}else{arr=arr.filter(function(x){return x!==v})}ans[vn]=arr;evL()}else if(act==='camera'){var f=el.files[0];if(f){var r=new FileReader();r.onload=function(ev){ans[vn]=ev.target.result};r.readAsDataURL(f)}}});
+        document.addEventListener('click',function(e){var el=e.target.closest&&e.target.closest('[data-act="clearsig"]');if(!el)return;cls(el.getAttribute('data-qid'),el.getAttribute('data-vn'))});
+        function nxt(){if(val()){pg++;ren();window.scrollTo(0,0)}}function prv(){pg--;ren();window.scrollTo(0,0)}
+        function initSigs(){proj.pages[pg].items.filter(function(q){return q.type==='signature'}).forEach(function(q){var c=document.getElementById('sig-'+q.id);if(!c)return;var x=c.getContext('2d'),d=false;function gp(e){var r=c.getBoundingClientRect();return{x:(e.touches?e.touches[0].clientX:e.clientX)-r.left,y:(e.touches?e.touches[0].clientY:e.clientY)-r.top}}function sd(e){d=true;var p=gp(e);x.beginPath();x.moveTo(p.x,p.y);e.preventDefault()}function dr(e){if(!d)return;var p=gp(e);x.lineTo(p.x,p.y);x.stroke();e.preventDefault()}function ed(e){d=false;ans[q.vName||q.id]=c.toDataURL();e.preventDefault()}c.addEventListener('mousedown',sd);c.addEventListener('mousemove',dr);c.addEventListener('mouseup',ed);c.addEventListener('mouseout',ed);c.addEventListener('touchstart',sd);c.addEventListener('touchmove',dr);c.addEventListener('touchend',ed)})}
+        window.cls=function(id,vn){var c=document.getElementById('sig-'+id);if(c){c.getContext('2d').clearRect(0,0,c.width,c.height);delete ans[vn]}}
+        async function sav(){if(!val())return;evL();ans._duration_sec=Math.round((Date.now()-st)/1000);ans._publishToken=PUB_TOKEN;var rec={id:editId||(crypto.randomUUID?crypto.randomUUID():'rec_'+Date.now()),participantId:pid,projectId:PROJECT_ID,timestamp:Date.now(),language:lang,answers:ans,_syncStatus:'pending'};var wasEdit=!!editId;editId=null;await subPut(rec);if(navigator.onLine&&SUPABASE_SUBMISSIONS_URL){try{await fetch(SUPABASE_SUBMISSIONS_URL,{method:'POST',headers:{'Content-Type':'application/json','apikey':SUPABASE_KEY,'Authorization':'Bearer '+SUPABASE_KEY,'Prefer':'resolution=merge-duplicates'},body:JSON.stringify(rec)});rec._syncStatus='synced';await subPut(rec);toast(wasEdit?'Response updated & submitted!':'Thank you — response submitted!','success')}catch(e){await qPut(rec);toast('Saved on this device. Will submit once online.','warning')}}else{await qPut(rec);toast('Saved on this device. Will submit once online.','warning')}ans={};pid='';document.getElementById('p-id').value='';pg=0;goTo('intro')}
+
+        /* ---- Bootstrap: fetch this project's questionnaire from the registry, with an
+           offline-first localStorage cache fallback so a device that loaded the link once can
+           keep collecting even if it's offline the next time it's opened. ---- */
+        function cacheKey(){return 'shell_proj_'+PROJECT_ID}
+        async function loadProject(){
+          if (!PROJECT_ID) { showError('This link is missing a project ID (expected ?p=... in the URL).'); return; }
+          var cached = null;
+          try { cached = JSON.parse(localStorage.getItem(cacheKey()) || 'null'); } catch(e) { cached = null; }
+          if (navigator.onLine && SUPABASE_REGISTRY_URL) {
+            try {
+              var fetchUrl = SUPABASE_REGISTRY_URL + '?projectId=eq.' + encodeURIComponent(PROJECT_ID) + '&select=projectConfig,token,projectName';
+              var res = await fetch(fetchUrl, { headers: { 'apikey': SUPABASE_KEY, 'Authorization': 'Bearer '+SUPABASE_KEY } });
+              if (!res.ok) throw new Error('HTTP '+res.status);
+              var rows = await res.json();
+              if (!rows.length) { showError('No published questionnaire found for this link. It may have been unpublished.'); return; }
+              var row = rows[0];
+              if (PUB_TOKEN && row.token && PUB_TOKEN !== row.token) { showError('This link access token does not match the published questionnaire. Ask for an updated link.'); return; }
+              proj = row.projectConfig;
+              try { localStorage.setItem(cacheKey(), JSON.stringify(proj)); } catch(e) {}
+              startApp();
+              return;
+            } catch (e) {
+              if (cached) { proj = cached; toast('Offline — using the last loaded copy of this questionnaire.', 'warning'); startApp(); return; }
+              showError('Could not load the questionnaire and no offline copy is available yet. Connect to the internet once, then this link will work offline too.');
+              return;
+            }
+          }
+          if (cached) { proj = cached; toast('Offline — using the last loaded copy of this questionnaire.', 'warning'); startApp(); return; }
+          showError('You are offline and this device has not loaded this questionnaire before. Connect once, then it will work offline.');
+        }
+        function startApp(){
+          document.getElementById('v-loading').classList.add('hidden');
+          document.getElementById('v-app').classList.remove('hidden');
+          document.getElementById('app-title').textContent = proj.name || '';
+          document.title = (proj.name || 'Questionnaire');
+          try { document.documentElement.style.setProperty('--theme-color', proj.theme || '#2563eb'); } catch(e) {}
+          try { document.body.style.fontFamily = proj.font || "'Segoe UI', sans-serif"; } catch(e) {}
+          updConn();
+          goTo('intro');
+          processQueue();
+        }
+        loadProject();
         <\/script>
         <\/body>
         <\/html>`;
